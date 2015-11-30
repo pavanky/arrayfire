@@ -46,7 +46,7 @@ seq::~seq()
 seq::seq(double n): m_gfor(false)
 {
     if (n < 0) {
-        init(0, n, 1);
+        init(0, n + 1, -1);
     } else {
         init(0, n - 1, 1);
     }
