@@ -33,6 +33,8 @@ OPTION(BUILD_NONFREE "Build ArrayFire nonfree algorithms" OFF)
 
 OPTION(BUILD_UNIFIED "Build Backend-Independent ArrayFire API" ON)
 
+OPTION(USE_GPUCC "Build ArrayFire CUDA backend using clang" OFF)
+
 # Set a default build type if none was specified
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)

@@ -1,6 +1,24 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
 FIND_PACKAGE(CUDA REQUIRED)
+IF (USE_GPUCC)
+  SET(GPUCC_FOUND OFF)
+  IF (UNIX)
+    IF (NOT APPLE)
+      IF(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "3.7")
+        SET(GPUCC_FOUND ON)
+        MESSAGE(STATUS "GPUCC FOUND")
+      ELSE()
+        MESSAGE(FATAL_ERROR " CMAKE_CXX_COMPILER not set to proper version of clang++")
+      ENDIF()
+    ELSE()
+      MESSAGE(FATAL_ERROR "GPUCC Not supported on APPLE")
+    ENDIF()
+  ELSE()
+    MESSAGE(FATAL_ERROR " GPUCC Not supported on Windows")
+  ENDIF()
+ENDIF()
+
 FIND_PACKAGE(Boost REQUIRED)
 
 INCLUDE("${CMAKE_MODULE_PATH}/CLKernelToH.cmake")
@@ -49,43 +67,14 @@ FOREACH(COMPUTE_DETECTED ${COMPUTES_DETECTED_LIST})
     SET(CUDA_COMPUTE_${COMPUTE_DETECTED} ON CACHE BOOL "" FORCE)
 ENDFOREACH()
 
-MACRO(SET_COMPUTE VERSION)
-    SET(CUDA_GENERATE_CODE_${VERSION} "-gencode arch=compute_${VERSION},code=sm_${VERSION}")
-    SET(CUDA_GENERATE_CODE ${CUDA_GENERATE_CODE} ${CUDA_GENERATE_CODE_${VERSION}})
-    LIST(APPEND COMPUTE_VERSIONS "${VERSION}")
-    ADD_DEFINITIONS(-DCUDA_COMPUTE_${VERSION})
-    MESSAGE(STATUS "Setting Compute ${VERSION} to ON")
-ENDMACRO(SET_COMPUTE)
-
-# Iterate over compute versions. Create variables and enable computes if needed
-FOREACH(VER 20 30 32 35 37 50 52 53)
-    OPTION(CUDA_COMPUTE_${VER} "CUDA Compute Capability ${VER}" OFF)
-    MARK_AS_ADVANCED(CUDA_COMPUTE_${VER})
-    IF(${CUDA_COMPUTE_${VER}})
-        SET_COMPUTE(${VER})
-    ENDIF()
-ENDFOREACH()
-
 IF(UNIX)
-    # GCC 5.3 and above give errors for mempcy from <string.h>
-    # This is a (temporary) fix for that
-    IF("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "5.3.0")
-      ADD_DEFINITIONS(-D_FORCE_INLINES)
-    ENDIF()
-
-    # GCC 6.0 and above default to g++14, enabling c++11 features by default
-    # Enabling c++11 with nvcc 7.5 + gcc 6.x doesn't seem to work
-    # Only solution for now is to force use c++03 for gcc 6.x
-    IF("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "6.0.0")
-      SET(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -Xcompiler -std=c++98")
-    ENDIF()
-
-    # Forcing STRICT ANSI should resolve a bunch of issues that NVIDIA seems to face with GCC compilers.
-    ADD_DEFINITIONS(-D__STRICT_ANSI__)
-    SET(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -Xcompiler -fvisibility=hidden)
-    IF(${WITH_COVERAGE})
-        SET(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -Xcompiler -fprofile-arcs -Xcompiler -ftest-coverage -Xlinker -fprofile-arcs -Xlinker -ftest-coverage")
-    ENDIF(${WITH_COVERAGE})
+  # GCC 5.3 and above give errors for mempcy from <string.h>
+  # This is a (temporary) fix for that
+  IF("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "5.3.0")
+    ADD_DEFINITIONS(-D_FORCE_INLINES)
+  ENDIF()
+  # Forcing STRICT ANSI should resolve a bunch of issues that NVIDIA seems to face with GCC compilers.
+  ADD_DEFINITIONS(-D__STRICT_ANSI__)
 ELSE()
     ADD_DEFINITIONS(-DAFDLL)
 ENDIF()
@@ -261,31 +250,24 @@ SOURCE_GROUP(api\\cpp\\Sources FILES ${cpp_sources})
 INCLUDE("${CMAKE_CURRENT_SOURCE_DIR}/kernel/sort_by_key/CMakeLists.txt")
 
 LIST(LENGTH COMPUTE_VERSIONS COMPUTE_COUNT)
-IF(${COMPUTE_COUNT} EQUAL 1)
-    SET(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} ${CUDA_GENERATE_CODE}")
+
+IF (NOT USE_GPUCC)
+  INCLUDE("${CMAKE_CURRENT_SOURCE_DIR}/CUDA_NVCC.cmake")
 ELSE()
-    SET(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -arch sm_20")
+  INCLUDE("${CMAKE_CURRENT_SOURCE_DIR}/CUDA_GPUCC.cmake")
 ENDIF()
 
-CUDA_COMPILE_PTX(ptx_files ${ptx_sources})
+# Iterate over compute versions. Create variables and enable computes if needed
+FOREACH(VER 20 30 32 35 37 50 52 53)
+    OPTION(CUDA_COMPUTE_${VER} "CUDA Compute Capability ${VER}" OFF)
+    MARK_AS_ADVANCED(CUDA_COMPUTE_${VER})
+    IF(${CUDA_COMPUTE_${VER}})
+        SET_COMPUTE(${VER})
+    ENDIF()
+ENDFOREACH()
 
 set(cuda_ptx "")
-foreach(ptx_src_file ${ptx_sources})
-
-      get_filename_component(_name "${ptx_src_file}" NAME_WE)
-
-      set(_gen_file_name
-        "${CMAKE_BINARY_DIR}/src/backend/cuda/cuda_compile_ptx_generated_${_name}.cu.ptx")
-      set(_out_file_name
-        "${CMAKE_BINARY_DIR}/src/backend/cuda/${_name}.ptx")
-
-      ADD_CUSTOM_COMMAND(
-        OUTPUT "${_out_file_name}"
-        DEPENDS "${_gen_file_name}"
-        COMMAND ${CMAKE_COMMAND} -E copy "${_gen_file_name}" "${_out_file_name}")
-
-      list(APPEND cuda_ptx "${_out_file_name}")
-endforeach()
+GENERATE_PTX(${ptx_sources})
 
 SET( ptx_headers
     "ptx_headers")
@@ -299,66 +281,6 @@ CL_KERNEL_TO_H(
     NAMESPACE "cuda"
     EOF "1"
     )
-
-IF("${APPLE}")
-    ADD_DEFINITIONS(-D__STRICT_ANSI__)
-    IF(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
-        IF(${CUDA_VERSION_MAJOR} VERSION_LESS 7)
-            SET(STD_LIB_BINDING "-stdlib=libstdc++")
-        ELSE(${CUDA_VERSION_MAJOR} VERSION_LESS 7)
-            SET(STD_LIB_BINDING "-stdlib=libc++")
-        ENDIF()
-
-        ADD_DEFINITIONS("${STD_LIB_BINDING}")
-        SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${STD_LIB_BINDING}")
-        SET(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${STD_LIB_BINDING}")
-        SET(CUDA_HOST_COMPILER "/usr/bin/clang++")
-    ENDIF()
-ENDIF()
-
-## Copied from FindCUDA.cmake
-## The target_link_library needs to link with the cuda libraries using
-## PRIVATE
-macro(MY_CUDA_ADD_LIBRARY cuda_target)
-
-  CUDA_ADD_CUDA_INCLUDE_ONCE()
-
-  # Separate the sources from the options
-  CUDA_GET_SOURCES_AND_OPTIONS(_sources _cmake_options _options ${ARGN})
-  CUDA_BUILD_SHARED_LIBRARY(_cuda_shared_flag ${ARGN})
-  # Create custom commands and targets for each file.
-  CUDA_WRAP_SRCS( ${cuda_target} OBJ _generated_files ${_sources}
-    ${_cmake_options} ${_cuda_shared_flag}
-    OPTIONS ${_options} )
-
-  # Compute the file name of the intermedate link file used for separable
-  # compilation.
-  CUDA_COMPUTE_SEPARABLE_COMPILATION_OBJECT_FILE_NAME(link_file ${cuda_target} "${${cuda_target}_SEPARABLE_COMPILATION_OBJECTS}")
-
-  # Add the library.
-  add_library(${cuda_target} ${_cmake_options}
-    ${_generated_files}
-    ${_sources}
-    ${link_file}
-    )
-
-  # Add a link phase for the separable compilation if it has been enabled.  If
-  # it has been enabled then the ${cuda_target}_SEPARABLE_COMPILATION_OBJECTS
-  # variable will have been defined.
-  CUDA_LINK_SEPARABLE_COMPILATION_OBJECTS("${link_file}" ${cuda_target} "${_options}" "${${cuda_target}_SEPARABLE_COMPILATION_OBJECTS}")
-
-  target_link_libraries(${cuda_target}
-      PRIVATE ${CUDA_LIBRARIES}
-    )
-
-  # We need to set the linker language based on what the expected generated file
-  # would be. CUDA_C_OR_CXX is computed based on CUDA_HOST_COMPILATION_CPP.
-  set_target_properties(${cuda_target}
-    PROPERTIES
-    LINKER_LANGUAGE ${CUDA_C_OR_CXX}
-    )
-
-endmacro()
 
 IF(NOT CUDA_CUDA_LIBRARY)
     MESSAGE(SEND_ERROR "CMake CUDA Variable CUDA_CUDA_LIBRARY Not found.")
@@ -378,20 +300,19 @@ IF(NOT CUDA_CUDA_LIBRARY)
     MESSAGE(FATAL_ERROR "Ending CMake configuration because of missing CUDA_CUDA_LIBRARY")
 ENDIF(NOT CUDA_CUDA_LIBRARY)
 
-MY_CUDA_ADD_LIBRARY(afcuda SHARED
-                ${cuda_headers}
-                ${cuda_sources}
-                ${jit_sources}
-                ${kernel_headers}
-                ${cpu_lapack_headers}
-                ${cpu_lapack_sources}
-                ${backend_headers}
-                ${backend_sources}
-                ${c_headers}
-                ${c_sources}
-                ${cpp_sources}
-                ${sort_by_key_sources}
-                OPTIONS ${CUDA_GENERATE_CODE})
+ADD_LIBRARY(afcuda SHARED
+  ${cuda_headers}
+  ${cuda_sources}
+  ${jit_sources}
+  ${kernel_headers}
+  ${cpu_lapack_headers}
+  ${cpu_lapack_sources}
+  ${backend_headers}
+  ${backend_sources}
+  ${c_headers}
+  ${c_sources}
+  ${cpp_sources}
+  ${sort_by_key_sources})
 
 ADD_DEPENDENCIES(afcuda ${ptx_targets})
 

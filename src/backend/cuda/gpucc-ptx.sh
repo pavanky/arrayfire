@@ -1,0 +1,5 @@
+CLANG=$1
+FILE_NAME=$2
+CUDA_GPU_ARCH=$3
+
+$CLANG -S $FILE_NAME --cuda-gpu-arch=$CUDA_GPU_ARCH
