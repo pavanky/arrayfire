@@ -27,15 +27,31 @@ template<typename T>
 static double median(const af_array& in)
 {
     dim_t nElems = getInfo(in).elements();
-    double mid      = (nElems + 1) / 2;
-    af_seq mdSpan[1]= {af_make_seq(mid-1, mid, 1)};
     dim4 dims(nElems, 1, 1, 1);
 
     af_array temp = 0;
     AF_CHECK(af_moddims(&temp, in, 1, dims.get()));
     const Array<T> input  = getArray<T>(temp);
 
-    Array<T> sortedArr = sort<T, true>(input, 0);
+    // Shortcut cases for 1 or 2 elements
+    if(nElems == 1) {
+        T result;
+        AF_CHECK(af_get_data_ptr((void*)&result, in));
+        return result;
+    } else if(nElems == 2) {
+        T result[2];
+        AF_CHECK(af_get_data_ptr((void*)&result, in));
+        if (input.isFloating()) {
+            return division(result[0] + result[1], 2.0);
+        } else {
+            return division(result[0] + result[1], 2.0);
+        }
+    }
+
+    double mid      = (nElems + 1) / 2;
+    af_seq mdSpan[1]= {af_make_seq(mid-1, mid, 1)};
+
+    Array<T> sortedArr = sort<T>(input, 0, true);
 
     af_array sarrHandle = getHandle<T>(sortedArr);
 
@@ -66,10 +82,17 @@ template<typename T>
 static af_array median(const af_array& in, const dim_t dim)
 {
     const Array<T> input = getArray<T>(in);
-    Array<T> sortedIn   = sort<T, true>(input, dim);
 
-    int nElems    = input.dims()[0];
-    double mid    = (nElems + 1) / 2;
+    // Shortcut cases for 1 element along selected dimension
+    if(input.dims()[dim] == 1) {
+        Array<T> result = copyArray<T>(input);
+        return getHandle<T>(result);
+    }
+
+    Array<T> sortedIn   = sort<T>(input, dim, true);
+
+    int dimLength = input.dims()[dim];
+    double mid    = (dimLength + 1) / 2;
     af_array left = 0;
 
     af_seq slices[4] = {af_span, af_span, af_span, af_span};
@@ -78,7 +101,7 @@ static af_array median(const af_array& in, const dim_t dim)
     af_array sortedIn_handle = getHandle<T>(sortedIn);
     AF_CHECK(af_index(&left, sortedIn_handle, input.ndims(), slices));
 
-    if (nElems % 2 == 1) {
+    if (dimLength % 2 == 1) {
         // mid-1 is our guy
         if (input.isFloating()) return left;
 
@@ -90,7 +113,7 @@ static af_array median(const af_array& in, const dim_t dim)
         return out;
     } else {
         // ((mid-1)+mid)/2 is our guy
-        dim4  dims = input.dims();
+        dim4 dims = input.dims();
         af_array right = 0;
         slices[dim] = af_make_seq(mid, mid, 1.0);
 
@@ -100,7 +123,8 @@ static af_array median(const af_array& in, const dim_t dim)
         af_array carr   = 0;
         af_array result = 0;
 
-        dim4 cdims = dim4(1, dims[1], dims[2], dims[3]);
+        dim4 cdims = dims;
+        cdims[dim] = 1;
         AF_CHECK(af_constant(&carr, 0.5, cdims.ndims(), cdims.get(), input.isDouble() ? f64 : f32));
 
         if (!input.isFloating()) {
@@ -148,7 +172,7 @@ af_err af_median_all(double *realVal, double *imagVal, const af_array in)
 af_err af_median(af_array* out, const af_array in, const dim_t dim)
 {
     try {
-        ARG_ASSERT(2, (dim>=0 && dim<=0));
+        ARG_ASSERT(2, (dim >= 0 && dim <= 4));
 
         af_array output = 0;
         ArrayInfo info = getInfo(in);

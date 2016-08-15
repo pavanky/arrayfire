@@ -25,7 +25,7 @@
 using cl::Buffer;
 using cl::Program;
 using cl::Kernel;
-using cl::make_kernel;
+using cl::KernelFunctor;
 using cl::EnqueueArgs;
 using cl::NDRange;
 using std::string;
@@ -86,8 +86,8 @@ namespace opencl
                 });
 
 
-                auto approx1Op = make_kernel<Buffer, const KParam, const Buffer, const KParam,
-                                       const Buffer, const KParam, const float, const dim_t, const int>
+                auto approx1Op = KernelFunctor<Buffer, const KParam, const Buffer, const KParam,
+                                       const Buffer, const KParam, const float, const int, const int>
                                       (*approxKernels[device]);
 
                 NDRange local(THREADS, 1, 1);
@@ -153,9 +153,9 @@ namespace opencl
                     approxKernels[device] = new Kernel(*approxProgs[device], "approx2_kernel");
                 });
 
-                auto approx2Op = make_kernel<Buffer, const KParam, const Buffer, const KParam,
+                auto approx2Op = KernelFunctor<Buffer, const KParam, const Buffer, const KParam,
                                        const Buffer, const KParam, const Buffer, const KParam,
-                                       const float, const dim_t, const dim_t, const int>
+                                       const float, const int, const int, const int>
                                        (*approxKernels[device]);
 
                 NDRange local(TX, TY, 1);

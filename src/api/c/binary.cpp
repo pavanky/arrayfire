@@ -36,13 +36,12 @@ template<af_op_t op>
 static af_err af_arith(af_array *out, const af_array lhs, const af_array rhs, const bool batchMode)
 {
     try {
-        const af_dtype otype = implicit(lhs, rhs);
-
         ArrayInfo linfo = getInfo(lhs);
         ArrayInfo rinfo = getInfo(rhs);
 
         dim4 odims = getOutDims(linfo.dims(), rinfo.dims(), batchMode);
 
+        const af_dtype otype = implicit(linfo.getType(), rinfo.getType());
         af_array res;
         switch (otype) {
         case f32: res = arithOp<float  , op>(lhs, rhs, odims); break;
@@ -70,13 +69,13 @@ template<af_op_t op>
 static af_err af_arith_real(af_array *out, const af_array lhs, const af_array rhs, const bool batchMode)
 {
     try {
-        const af_dtype otype = implicit(lhs, rhs);
 
         ArrayInfo linfo = getInfo(lhs);
         ArrayInfo rinfo = getInfo(rhs);
 
         dim4 odims = getOutDims(linfo.dims(), rinfo.dims(), batchMode);
 
+        const af_dtype otype = implicit(linfo.getType(), rinfo.getType());
         af_array res;
         switch (otype) {
         case f32: res = arithOp<float  , op>(lhs, rhs, odims); break;
@@ -144,7 +143,13 @@ af_err af_pow(af_array *out, const af_array lhs, const af_array rhs, const bool 
         ArrayInfo linfo = getInfo(lhs);
         ArrayInfo rinfo = getInfo(rhs);
         if (linfo.isComplex() || rinfo.isComplex()) {
-            AF_ERROR("Powers of Complex numbers not supported", AF_ERR_NOT_SUPPORTED);
+            af_array log_lhs, log_res;
+            af_array res;
+            AF_CHECK(af_log(&log_lhs, lhs));
+            AF_CHECK(af_mul(&log_res, log_lhs, rhs, batchMode));
+            AF_CHECK(af_exp(&res, log_res));
+            std::swap(*out, res);
+            return AF_SUCCESS;
         }
     } CATCHALL;
 
@@ -157,7 +162,13 @@ af_err af_root(af_array *out, const af_array lhs, const af_array rhs, const bool
         ArrayInfo linfo = getInfo(lhs);
         ArrayInfo rinfo = getInfo(rhs);
         if (linfo.isComplex() || rinfo.isComplex()) {
-            AF_ERROR("Powers of Complex numbers not supported", AF_ERR_NOT_SUPPORTED);
+            af_array log_lhs, log_res;
+            af_array res;
+            AF_CHECK(af_log(&log_lhs, lhs));
+            AF_CHECK(af_div(&log_res, log_lhs, rhs, batchMode));
+            AF_CHECK(af_exp(&res, log_res));
+            std::swap(*out, res);
+            return AF_SUCCESS;
         }
 
         af_array one;

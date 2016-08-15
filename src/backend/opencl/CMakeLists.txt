@@ -3,21 +3,15 @@ PROJECT(ARRAYFIRE)
 
 FIND_PACKAGE(OpenCL REQUIRED)
 
+ADD_DEFINITIONS(-DCL_USE_DEPRECATED_OPENCL_1_2_APIS)
+
+IF(NOT USE_SYSTEM_CL2HPP)
+    INCLUDE("${CMAKE_MODULE_PATH}/build_cl2hpp.cmake")
+ENDIF(NOT USE_SYSTEM_CL2HPP)
 INCLUDE("${CMAKE_MODULE_PATH}/CLKernelToH.cmake")
 
 IF(USE_OPENCL_F77_BLAS)
-    MESSAGE("Using F77 BLAS")
     ADD_DEFINITIONS(-DUSE_F77_BLAS)
-ENDIF()
-
-IF(USE_OPENCL_MKL) # Manual MKL Setup
-    MESSAGE("OpenCL Backend Using MKL")
-    ADD_DEFINITIONS(-DUSE_MKL)
-ELSE(USE_OPENCL_MKL)
-    IF(${MKL_FOUND}) # Automatic MKL Setup from BLAS
-        MESSAGE("OpenCL Backend Using MKL RT")
-        ADD_DEFINITIONS(-DUSE_MKL)
-    ENDIF()
 ENDIF()
 
 IF(APPLE)
@@ -43,16 +37,23 @@ ELSE(NOT LAPACK_FOUND)
     FIND_PACKAGE(CBLAS REQUIRED)
 
     IF(USE_CPU_F77_BLAS)
-      MESSAGE("Using F77 BLAS")
       ADD_DEFINITIONS(-DUSE_F77_BLAS)
     ENDIF()
 
     IF (NOT CBLAS_LIBRARIES)
       MESSAGE(SEND_ERROR "CBLAS Library not set")
-    ELSE()
-      MESSAGE(STATUS "Using CBLAS Library: ${CBLAS_LIBRARIES}")
     ENDIF()
   ENDIF()
+ENDIF()
+
+IF(USE_OPENCL_MKL) # Manual MKL Setup
+    MESSAGE("OpenCL Backend Using MKL")
+    ADD_DEFINITIONS(-DUSE_MKL)
+ELSE(USE_OPENCL_MKL)
+    IF(${MKL_FOUND}) # Automatic MKL Setup from BLAS
+        MESSAGE("OpenCL Backend Using MKL RT")
+        ADD_DEFINITIONS(-DUSE_MKL)
+    ENDIF()
 ENDIF()
 
 IF(NOT UNIX)
@@ -98,6 +99,7 @@ INCLUDE_DIRECTORIES(
     ${CMAKE_INCLUDE_PATH}
     "${CMAKE_SOURCE_DIR}/src/backend/opencl"
     ${OpenCL_INCLUDE_DIRS}
+    ${CL2HPP_INCLUDE_DIRECTORY}
     "${CMAKE_CURRENT_BINARY_DIR}"
     ${CLBLAS_INCLUDE_DIRS}
     ${CLFFT_INCLUDE_DIRS}
@@ -111,12 +113,10 @@ ENDIF()
 
 FILE(GLOB opencl_headers
   "*.hpp"
-  "*.h"
-  "sort_by_key/*.hpp")
+  "*.h")
 
 FILE(GLOB opencl_sources
-    "*.cpp"
-    "sort_by_key/*.cpp")
+    "*.cpp")
 
 FILE(GLOB jit_sources
     "jit/*.hpp")
@@ -142,6 +142,17 @@ FILE(GLOB cpu_headers
 FILE(GLOB cpu_sources
      "cpu/*.cpp")
 
+LIST(SORT opencl_headers)
+LIST(SORT opencl_sources)
+LIST(SORT jit_sources)
+LIST(SORT kernel_headers)
+LIST(SORT opencl_kernels)
+LIST(SORT kernel_sources)
+LIST(SORT conv_ker_headers)
+LIST(SORT conv_ker_sources)
+LIST(SORT cpu_headers)
+LIST(SORT cpu_sources)
+
 source_group(backend\\opencl\\Headers FILES ${opencl_headers})
 source_group(backend\\opencl\\Sources FILES ${opencl_sources})
 source_group(backend\\opencl\\JIT FILES ${jit_sources})
@@ -160,6 +171,9 @@ IF(LAPACK_FOUND)
     FILE(GLOB magma_headers
         "magma/*.h")
 
+    LIST(SORT magma_headers)
+    LIST(SORT magma_sources)
+
     source_group(backend\\opencl\\magma\\Sources FILES ${magma_sources})
     source_group(backend\\opencl\\magma\\Headers FILES ${magma_headers})
 ELSE()
@@ -175,6 +189,10 @@ FILE(GLOB backend_headers
 FILE(GLOB backend_sources
     "../*.cpp"
     )
+
+LIST(SORT backend_headers)
+LIST(SORT backend_sources)
+
 source_group(backend\\Headers FILES ${backend_headers})
 source_group(backend\\Sources FILES ${backend_sources})
 
@@ -186,16 +204,24 @@ FILE(GLOB c_headers
 FILE(GLOB c_sources
     "../../api/c/*.cpp"
     )
+
+LIST(SORT c_headers)
+LIST(SORT c_sources)
+
 source_group(api\\c\\Headers FILES ${c_headers})
 source_group(api\\c\\Sources FILES ${c_sources})
-
 
 FILE(GLOB cpp_sources
     "../../api/cpp/*.cpp"
     )
+
+LIST(SORT cpp_sources)
+
 source_group(api\\cpp\\Sources FILES ${cpp_sources})
 
 FILE(GLOB kernel_src ${opencl_kernels} "kernel/KParam.hpp")
+
+LIST(SORT kernel_src)
 
 CL_KERNEL_TO_H(
     SOURCES ${kernel_src}
@@ -209,9 +235,17 @@ CL_KERNEL_TO_H(
 
 # OS Definitions
 IF(UNIX)
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -pthread -Wno-comment")
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -pthread -Wno-comment")
+    # GCC 6.0 and above enable -Wignored-attributes by default causing a lot of warnings
+    # Disable the trigger for gcc >= 6.0.0
+    IF("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "6.0.0")
+        ADD_DEFINITIONS(-Wno-ignored-attributes)
+    ENDIF()
 ENDIF()
 
+INCLUDE("${CMAKE_CURRENT_SOURCE_DIR}/kernel/sort_by_key/CMakeLists.txt")
+
+INCLUDE("${CMAKE_CURRENT_SOURCE_DIR}/kernel/scan_by_key/CMakeLists.txt")
 IF(DEFINED BLAS_SYM_FILE)
 
     ADD_LIBRARY(afopencl_static STATIC
@@ -228,7 +262,9 @@ IF(DEFINED BLAS_SYM_FILE)
                 ${backend_headers}
                 ${backend_sources}
                 ${magma_sources}
-                ${magma_headers})
+                ${magma_headers}
+                ${SORT_BY_KEY_OBJECTS}
+                ${SCAN_BY_KEY_OBJECTS})
 
     ADD_LIBRARY(afopencl SHARED
                ${c_headers}
@@ -271,19 +307,23 @@ ELSE(DEFINED BLAS_SYM_FILE)
                 ${c_sources}
                 ${cpp_sources}
                 ${magma_sources}
-                ${magma_headers})
+                ${magma_headers}
+                ${SORT_BY_KEY_OBJECTS}
+                ${SCAN_BY_KEY_OBJECTS})
 
 ENDIF()
 
+IF(NOT USE_SYSTEM_CL2HPP)
+    ADD_DEPENDENCIES(afopencl cl2hpp)
+ENDIF(NOT USE_SYSTEM_CL2HPP)
 ADD_DEPENDENCIES(afopencl ${cl_kernel_targets})
 
 TARGET_LINK_LIBRARIES(afopencl
                                 PRIVATE ${OpenCL_LIBRARIES}
-                                PRIVATE ${FreeImage_LIBS}
                                 PRIVATE ${CLBLAS_LIBRARIES}
                                 PRIVATE ${CLFFT_LIBRARIES}
                                 PRIVATE ${CMAKE_DL_LIBS}
-                                PRIVATE ${Boost_LIBRARIES})
+                     )
 
 IF(FORGE_FOUND AND NOT USE_SYSTEM_FORGE)
     ADD_DEPENDENCIES(afopencl forge)
@@ -294,6 +334,8 @@ IF(LAPACK_FOUND)
     PRIVATE ${LAPACK_LIBRARIES}
     PRIVATE ${CBLAS_LIBRARIES})
 ENDIF()
+
+TARGET_LINK_LIBRARIES(afopencl PRIVATE ${FreeImage_LIBS})
 
 SET_TARGET_PROPERTIES(afopencl PROPERTIES
     VERSION "${AF_VERSION}"

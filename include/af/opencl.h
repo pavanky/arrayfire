@@ -100,9 +100,7 @@ AFAPI af_err afcl_set_device_id(cl_device_id id);
                   parameter is NULL, then we create a command queue for the user using the OpenCL
                   context they provided us.
 
-   \note The cl_* objects are passed onto c++ objects (cl::Device, cl::Context & cl::CommandQueue)
-   that are defined in the `cl.hpp` OpenCL c++ header provided by Khronos Group Inc. Therefore, please
-   be aware of the lifetime of the cl_* objects before passing them to ArrayFire.
+   \note ArrayFire does not take control of releasing the objects passed to it. The user needs to release them appropriately.
 */
 AFAPI af_err afcl_add_device_context(cl_device_id dev, cl_context ctx, cl_command_queue que);
 #endif
@@ -127,9 +125,7 @@ AFAPI af_err afcl_set_device_context(cl_device_id dev, cl_context ctx);
    \param[in] dev is the OpenCL device id that has to be popped
    \param[in] ctx is the cl_context object to be removed from ArrayFire pool
 
-   \note Any reference counts incremented for cl_* objects by ArrayFire internally are decremented
-   by this func call and you won't be able to call `afcl_set_device_context` on these objects after
-   this function has been called.
+   \note ArrayFire does not take control of releasing the objects passed to it. The user needs to release them appropriately.
 */
 AFAPI af_err afcl_delete_device_context(cl_device_id dev, cl_context ctx);
 #endif
@@ -167,13 +163,11 @@ AFAPI af_err afcl_get_platform(afcl_platform *res);
 namespace afcl
 {
 
-/**
-
- */
  /**
-     \ingroup opencl_mat
+     \addtogroup opencl_mat
      @{
  */
+
  /**
  Get a handle to ArrayFire's OpenCL context
 
@@ -245,9 +239,7 @@ namespace afcl
                   parameter is NULL, then we create a command queue for the user using the OpenCL
                   context they provided us.
 
-   \note The cl_* objects are passed onto c++ objects (cl::Device, cl::Context & cl::CommandQueue)
-   that are defined in the `cl.hpp` OpenCL c++ header provided by Khronos Group Inc. Therefore, please
-   be aware of the lifetime of the cl_* objects before passing them to ArrayFire.
+   \note ArrayFire does not take control of releasing the objects passed to it. The user needs to release them appropriately.
 */
 static inline void addDevice(cl_device_id dev, cl_context ctx, cl_command_queue que)
 {
@@ -280,9 +272,7 @@ static inline void setDevice(cl_device_id dev, cl_context ctx)
    \param[in] dev is the OpenCL device id that has to be popped
    \param[in] ctx is the cl_context object to be removed from ArrayFire pool
 
-   \note Any reference counts incremented for cl_* objects by ArrayFire internally are decremented
-   by this func call and you won't be able to call `afcl_set_device_context` on these objects after
-   this function has been called.
+   \note ArrayFire does not take control of releasing the objects passed to it. The user needs to release them appropriately.
 */
 static inline void deleteDevice(cl_device_id dev, cl_context ctx)
 {
@@ -312,7 +302,7 @@ static inline deviceType getDeviceType()
 
 #if AF_API_VERSION >= 33
 /**
-   Get the type of the current device
+   Get a vendor enumeration for the current platform
 */
 static inline platform getPlatform()
 {
@@ -444,19 +434,5 @@ static inline platform getPlatform()
 */
 }
 
-namespace af
-{
-
-#if !defined(AF_OPENCL)
-template<> AFAPI cl_mem *array::device() const
-{
-    cl_mem *mem = new cl_mem;
-    af_err err = af_get_device_ptr((void **)mem, get());
-    if (err != AF_SUCCESS) throw af::exception("Failed to get cl_mem from array object");
-    return mem;
-}
-#endif
-
-}
 
 #endif

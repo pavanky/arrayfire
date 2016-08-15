@@ -1,6 +1,88 @@
 Release Notes {#releasenotes}
 ==============
 
+v3.3.2
+==============
+
+Improvements
+------------
+* Family of [Sort](\ref sort_mat) functions now support
+  [higher order dimensions](https://github.com/arrayfire/arrayfire/pull/1373).
+* Improved performance of batched sort on dim 0 for all [Sort](\ref sort_mat) functions.
+* [Median](\ref stat_func_median) now also supports higher order dimensions.
+
+Bug Fixes
+--------------
+
+* Fixes to [error handling](https://github.com/arrayfire/arrayfire/issues/1352) in C++ API for binary functions.
+* Fixes to [external OpenCL context management](https://github.com/arrayfire/arrayfire/issues/1350).
+* Fixes to [JPEG_GREYSCALE](https://github.com/arrayfire/arrayfire/issues/1360) for FreeImage versions <= 3.154.
+* Fixed for [non-float inputs](https://github.com/arrayfire/arrayfire/issues/1386) to \ref af::rgb2gray().
+
+Build
+------
+* [Disable CPU Async](https://github.com/arrayfire/arrayfire/issues/1378) when building with GCC < 4.8.4.
+* Add option to [disable CPUID](https://github.com/arrayfire/arrayfire/issues/1369) from CMake.
+* More verbose message when [CUDA Compute Detection fails](https://github.com/arrayfire/arrayfire/issues/1362).
+* Print message to use [CUDA library stub](https://github.com/arrayfire/arrayfire/issues/1363)
+  from CUDA Toolkit if CUDA Library is not found from default paths.
+* [Build Fixes](https://github.com/arrayfire/arrayfire/pull/1385) on Windows.
+  * For compiling tests our of source.
+  * For compiling ArrayFire with static MKL.
+* [Exclude <sys/sysctl.h>](https://github.com/arrayfire/arrayfire/pull/1368) when building on GNU Hurd.
+* Add [manual CMake options](https://github.com/arrayfire/arrayfire/pull/1389) to build DEB and RPM packages.
+
+Documentation
+-------------
+* Fixed documentation for \ref af::replace().
+* Fixed images in [Using on OSX](\ref using_on_osx) page.
+
+Installer
+---------
+* Linux x64 installers will now be compiled with GCC 4.9.2.
+* OSX installer gives better error messages on brew failures and
+  now includes link to [Fixing OS X Installer Failures] (https://github.com/arrayfire/arrayfire/wiki/Fixing-Common-OS-X-Installer-Failures)
+  for brew installation failures.
+
+v3.3.1
+==============
+
+Bug Fixes
+--------------
+
+* Fixes to \ref af::array::device()
+    * CPU Backend: [evaluate arrays](https://github.com/arrayfire/arrayfire/issues/1316)
+      before returning pointer with asynchronous calls in CPU backend.
+    * OpenCL Backend: [fix segfaults](https://github.com/arrayfire/arrayfire/issues/1324)
+      when requested for device pointers on empty arrays.
+* Fixed \ref af::array::operator%() from using [rem to mod](https://github.com/arrayfire/arrayfire/issues/1318).
+* Fixed [array destruction](https://github.com/arrayfire/arrayfire/issues/1321)
+  when backends are switched in Unified API.
+* Fixed [indexing](https://github.com/arrayfire/arrayfire/issues/1331) after
+  \ref af::moddims() is called.
+* Fixes FFT calls for CUDA and OpenCL backends when used on
+  [multiple devices](https://github.com/arrayfire/arrayfire/issues/1332).
+* Fixed [unresolved external](https://github.com/arrayfire/arrayfire/commit/32965ef)
+  for some functions from \ref af::array::array_proxy class.
+
+Build
+------
+* CMake compiles files in alphabetical order.
+* CMake fixes for BLAS and LAPACK on some Linux distributions.
+
+Improvements
+------------
+* Fixed [OpenCL FFT performance](https://github.com/arrayfire/arrayfire/issues/1323) regression.
+* \ref af::array::device() on OpenCL backend [returns](https://github.com/arrayfire/arrayfire/issues/1311)
+  `cl_mem` instead of `(void*)cl::Buffer*`.
+* In Unified backend, [load versioned libraries](https://github.com/arrayfire/arrayfire/issues/1312)
+  at runtime.
+
+Documentation
+------
+* Reorganized, cleaner README file.
+* Replaced non-free lena image in assets with free-to-distribute lena image.
+
 v3.3.0
 ==============
 
@@ -322,7 +404,7 @@ Bug Fixes
 Documentation Updates
 ---------------------
 * Improved tutorials documentation
-    * More detailed Using on [Linux](\ref using_on_windows), [OSX](\ref using_on_windows),
+    * More detailed Using on [Linux](\ref using_on_linux), [OSX](\ref using_on_osx),
       [Windows](\ref using_on_windows) pages.
 * Added return type information for functions that return different type
   arrays

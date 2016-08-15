@@ -330,7 +330,7 @@ namespace af
 
             \endcode
 
-            \note If \p src is \ref afHost, the first \p dim0 elements are copied. If \p src is \ref afDevice, no copy is done; the array object just wraps the device pointer.
+            \note If \p src is \ref afHost, the first \p dim0 elements are copied. If \p src is \ref afDevice, no copy is done; the array object wraps the device pointer AND takes ownership of the underlying memory.
 
         */
         template<typename T>
@@ -354,7 +354,7 @@ namespace af
 
             \image html 2dArray.png
 
-            \note If \p src is \ref afHost, the first \p dim0 * \p dim1 elements are copied. If \p src is \ref afDevice, no copy is done; the array object just wraps the device pointer. The data is treated as column major format when performing linear algebra operations.
+            \note If \p src is \ref afHost, the first \p dim0 * \p dim1 elements are copied. If \p src is \ref afDevice, no copy is done; the array object wraps the device pointer AND takes ownership of the underlying memory. The data is treated as column major format when performing linear algebra operations.
         */
         template<typename T>
         array(dim_t dim0, dim_t dim1,
@@ -378,7 +378,7 @@ namespace af
             array A(3, 3, 2,  h_buffer);   // copy host data to 3D device array
             \endcode
 
-            \note If \p src is \ref afHost, the first \p dim0 * \p dim1 * \p dim2 elements are copied. If \p src is \ref afDevice, no copy is done; the array object just wraps the device pointer. The data is treated as column major format when performing linear algebra operations.
+            \note If \p src is \ref afHost, the first \p dim0 * \p dim1 * \p dim2 elements are copied. If \p src is \ref afDevice, no copy is done; the array object just wraps the device pointer and does not take ownership of the underlying memory. The data is treated as column major format when performing linear algebra operations.
 
             \image html 3dArray.png
         */
@@ -407,7 +407,7 @@ namespace af
             array A(2, 2, 2, 2, h_buffer);   // copy host data to 4D device array
             \endcode
 
-            \note If \p src is \ref afHost, the first \p dim0 * \p dim1 * \p dim2 * \p dim3 elements are copied. If \p src is \ref afDevice, no copy is done; the array object just wraps the device pointer. The data is treated as column major format when performing linear algebra operations.
+            \note If \p src is \ref afHost, the first \p dim0 * \p dim1 * \p dim2 * \p dim3 elements are copied. If \p src is \ref afDevice, no copy is done; the array object just wraps the device pointer and does not take ownership of the underlying memory. The data is treated as column major format when performing linear algebra operations.
         */
         template<typename T>
         array(dim_t dim0, dim_t dim1, dim_t dim2, dim_t dim3,
@@ -444,7 +444,7 @@ namespace af
                                              // used in ArrayFire
             \endcode
 
-            \note If \p src is \ref afHost, the first dims.elements() elements are copied. If \p src is \ref afDevice, no copy is done; the array object just wraps the device pointer. The data is treated as column major format when performing linear algebra operations.
+            \note If \p src is \ref afHost, the first dims.elements() elements are copied. If \p src is \ref afDevice, no copy is done; the array object just wraps the device pointer and does not take ownership of the underlying memory. The data is treated as column major format when performing linear algebra operations.
         */
         template<typename T>
         explicit
@@ -1243,11 +1243,21 @@ namespace af
        @{
     */
     inline array &eval(array &a) { a.eval(); return a; }
-    inline void eval(array &a, array &b) { eval(a); b.eval(); }
-    inline void eval(array &a, array &b, array &c) { eval(a, b); c.eval(); }
-    inline void eval(array &a, array &b, array &c, array &d) { eval(a, b, c); d.eval(); }
-    inline void eval(array &a, array &b, array &c, array &d, array &e) { eval(a, b, c, d); e.eval(); }
-    inline void eval(array &a, array &b, array &c, array &d, array &e, array &f) { eval(a, b, c, d, e); f.eval(); }
+    AFAPI void eval(array &a, array &b);
+    AFAPI void eval(array &a, array &b, array &c);
+    AFAPI void eval(array &a, array &b, array &c, array &d);
+    AFAPI void eval(array &a, array &b, array &c, array &d, array &e);
+    AFAPI void eval(array &a, array &b, array &c, array &d, array &e, array &f);
+    AFAPI void eval(int num, array **arrays);
+
+    ///
+    /// Turn the manual eval flag on or off
+    ///
+    AFAPI void setManualEvalFlag(bool flag);
+
+    /// Get the manual eval flag
+    AFAPI bool getManualEvalFlag();
+
     /**
        @}
     */
@@ -1344,6 +1354,33 @@ extern "C" {
     /**
       @}
     */
+
+
+    /**
+       Evaluate multiple arrays together
+    */
+    AFAPI af_err af_eval_multiple(const int num, af_array *arrays);
+    /**
+      @}
+    */
+
+    /**
+       Turn the manual eval flag on or off
+    */
+    AFAPI af_err af_set_manual_eval_flag(bool flag);
+    /**
+      @}
+    */
+
+
+    /**
+       Get the manual eval flag
+    */
+    AFAPI af_err af_get_manual_eval_flag(bool *flag);
+    /**
+      @}
+    */
+
 
     /**
         \ingroup method_mat

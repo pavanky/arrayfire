@@ -8,7 +8,6 @@
  ********************************************************/
 
 #pragma once
-#include <af/array.h>
 #include <optypes.hpp>
 #include <vector>
 #include "Node.hpp"
@@ -47,7 +46,7 @@ namespace TNJ
             return;
         }
 
-        void reset() { m_is_eval = false; }
+        void reset() { resetCommonFlags(); }
 
         bool isLinear(const dim_t *dims) { return true; }
     };

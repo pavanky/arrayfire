@@ -3,7 +3,30 @@ ADD_DEFINITIONS(-DAF_CPU)
 
 FIND_PACKAGE(CBLAS REQUIRED)
 
-OPTION(BUILD_CPU_ASYNC "Build CPU backend with ASYNC support" ON)
+IF(NOT DEFINED BUILD_CPU_ASYNC)
+    CMAKE_POLICY(PUSH)
+    # https://cmake.org/cmake/help/v3.1/policy/CMP0054.html
+    IF("${CMAKE_VERSION}" VERSION_GREATER "3.1" OR "${CMAKE_VERSION}" VERSION_EQUAL "3.1")
+        CMAKE_POLICY(SET CMP0054 OLD)
+    ENDIF()
+
+    IF("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "4.8.4")
+        MESSAGE("Disabling CPU Async as GCC Version ${COMPILER_VERSION} has known issues.")
+        MESSAGE("CPU Backend will use Synchronous Calls")
+        OPTION(BUILD_CPU_ASYNC "Build CPU backend with ASYNC support" OFF)
+    ELSE()
+        OPTION(BUILD_CPU_ASYNC "Build CPU backend with ASYNC support" ON)
+    ENDIF()
+
+    CMAKE_POLICY(POP)
+ENDIF(NOT DEFINED BUILD_CPU_ASYNC)
+MARK_AS_ADVANCED(USE_CPUID)
+
+if (USE_CPUID)
+  ADD_DEFINITIONS(-DUSE_CPUID=1)
+ELSE(USE_CPUID)
+  ADD_DEFINITIONS(-DUSE_CPUID=0)
+ENDIF(USE_CPUID)
 
 IF (NOT ${BUILD_CPU_ASYNC})
     ADD_DEFINITIONS(-DAF_DISABLE_CPU_ASYNC)
@@ -26,8 +49,6 @@ ENDIF()
 
 IF (NOT CBLAS_LIBRARIES)
     MESSAGE(SEND_ERROR "CBLAS Library not set")
-ELSE()
-    MESSAGE(STATUS "Using CBLAS Library: ${CBLAS_LIBRARIES}")
 ENDIF()
 
 IF(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU" AND "${APPLE}")
@@ -35,8 +56,6 @@ IF(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU" AND "${APPLE}")
 ENDIF()
 
 FIND_PACKAGE(FFTW REQUIRED)
-MESSAGE(STATUS "FFTW Found ? ${FFTW_FOUND}")
-MESSAGE(STATUS "FFTW Library: ${FFTW_LIBRARIES}")
 
 IF(APPLE)
     FIND_PACKAGE(LAPACKE QUIET) # For finding MKL
@@ -56,7 +75,6 @@ IF(NOT LAPACK_FOUND)
     MESSAGE(WARNING "LAPACK not found. Functionality will be disabled")
 ELSE(NOT LAPACK_FOUND)
     ADD_DEFINITIONS(-DWITH_CPU_LINEAR_ALGEBRA)
-    MESSAGE(STATUS "LAPACK libraries found: ${LAPACK_LIBRARIES}")
 ENDIF()
 
 IF(NOT UNIX)
@@ -95,6 +113,9 @@ FILE(GLOB cpu_headers
 FILE(GLOB cpu_sources
     "*.cpp")
 
+LIST(SORT cpu_headers)
+LIST(SORT cpu_sources)
+
 source_group(backend\\cpu\\Headers FILES ${cpu_headers})
 source_group(backend\\cpu\\Sources FILES ${cpu_sources})
 
@@ -106,6 +127,9 @@ FILE(GLOB backend_headers
 FILE(GLOB backend_sources
     "../*.cpp"
     )
+
+LIST(SORT backend_headers)
+LIST(SORT backend_sources)
 
 source_group(backend\\Headers FILES ${backend_headers})
 source_group(backend\\Sources FILES ${backend_sources})
@@ -119,12 +143,17 @@ FILE(GLOB c_sources
     "../../api/c/*.cpp"
     )
 
+LIST(SORT c_headers)
+LIST(SORT c_sources)
+
 source_group(api\\c\\Headers FILES ${c_headers})
 source_group(api\\c\\Sources FILES ${c_sources})
 
 FILE(GLOB cpp_sources
     "../../api/cpp/*.cpp"
     )
+
+LIST(SORT cpp_sources)
 
 source_group(api\\cpp\\Sources FILES ${cpp_sources})
 
@@ -135,13 +164,15 @@ ELSE(${UNIX}) #Windows
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 ENDIF()
 
+INCLUDE("${CMAKE_CURRENT_SOURCE_DIR}/kernel/sort_by_key/CMakeLists.txt")
 
 IF(DEFINED BLAS_SYM_FILE)
   ADD_LIBRARY(afcpu_static STATIC
               ${cpu_headers}
               ${cpu_sources}
               ${backend_headers}
-              ${backend_sources})
+              ${backend_sources}
+              ${SORT_BY_KEY_OBJECTS})
 
   ADD_LIBRARY(afcpu SHARED
               ${c_headers}
@@ -165,21 +196,23 @@ IF(DEFINED BLAS_SYM_FILE)
 
 ELSE(DEFINED BLAS_SYM_FILE)
 
-  ADD_LIBRARY(afcpu SHARED
-              ${cpu_headers}
-              ${cpu_sources}
-              ${backend_headers}
-              ${backend_sources}
-              ${c_headers}
-              ${c_sources}
-              ${cpp_sources})
+ADD_LIBRARY(afcpu SHARED
+            ${cpu_headers}
+            ${cpu_sources}
+            ${backend_headers}
+            ${backend_sources}
+            ${c_headers}
+            ${c_sources}
+            ${cpp_sources}
+            ${SORT_BY_KEY_OBJECTS})
 
 ENDIF(DEFINED BLAS_SYM_FILE)
 
 TARGET_LINK_LIBRARIES(afcpu
-                            PRIVATE ${FreeImage_LIBS}
                             PRIVATE ${CBLAS_LIBRARIES}
-                            PRIVATE ${FFTW_LIBRARIES})
+                            PRIVATE ${FFTW_LIBRARIES}
+                            PRIVATE ${FreeImage_LIBS}
+                     )
 
 IF(FORGE_FOUND AND NOT USE_SYSTEM_FORGE)
   ADD_DEPENDENCIES(afcpu forge)

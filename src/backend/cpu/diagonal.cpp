@@ -7,9 +7,7 @@
  * http://arrayfire.com/licenses/BSD-3-Clause
  ********************************************************/
 
-#include <af/array.h>
 #include <af/dim4.hpp>
-#include <af/defines.h>
 #include <handle.hpp>
 #include <Array.hpp>
 #include <diagonal.hpp>
@@ -42,7 +40,7 @@ Array<T> diagExtract(const Array<T> &in, const int num)
     in.eval();
 
     const dim4 idims = in.dims();
-    dim_t size = std::max(idims[0], idims[1]) - std::abs(num);
+    dim_t size = std::min(idims[0], idims[1]) - std::abs(num);
     Array<T> out = createEmptyArray<T>(dim4(size, 1, idims[2], idims[3]));
 
     getQueue().enqueue(kernel::diagExtract<T>, out, in, num);

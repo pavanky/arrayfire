@@ -7,7 +7,6 @@
  * http://arrayfire.com/licenses/BSD-3-Clause
  ********************************************************/
 
-#include <af/defines.h>
 #include <af/constants.h>
 #include <dispatch.hpp>
 #include <err_cuda.hpp>
@@ -15,10 +14,10 @@
 #include <memory.hpp>
 
 #include "config.hpp"
-#include <convolve_common.hpp>
 #include "convolve.hpp"
 #include "gradient.hpp"
-#include "sort_index.hpp"
+#include "sort_by_key.hpp"
+#include "range.hpp"
 
 namespace cuda
 {
@@ -336,10 +335,12 @@ void harris(unsigned* corners_out,
 
         int sort_elem = harris_responses.strides[3] * harris_responses.dims[3];
         harris_responses.ptr = d_resp_corners;
+        // Create indices using range
         harris_idx.ptr = memAlloc<unsigned>(sort_elem);
+        kernel::range<uint>(harris_idx, 0);
 
         // Sort Harris responses
-        sort0_index<float, false>(harris_responses, harris_idx);
+        sort0ByKey<float, uint>(harris_responses, harris_idx, false);
 
         *x_out = memAlloc<float>(*corners_out);
         *y_out = memAlloc<float>(*corners_out);

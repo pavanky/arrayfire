@@ -48,11 +48,12 @@ FIND_PACKAGE(FreeImage)
 IF(FREEIMAGE_FOUND)
     ADD_DEFINITIONS(-DWITH_FREEIMAGE)
     SET(FreeImage_LIBS ${FREEIMAGE_LIBRARY})
-    MESSAGE(STATUS "Using FreeImage library ${FreeImage_LIBS}")
-    INCLUDE_DIRECTORIES(${FREEIMAGE_INCLUDE_PATH})
+    INCLUDE_DIRECTORIES(BEFORE ${FREEIMAGE_INCLUDE_PATH})
 ELSE(FREEIMAGE_FOUND)
     MESSAGE(WARNING, "FreeImage not found!")
 ENDIF(FREEIMAGE_FOUND)
+
+OPTION(USE_SYSTEM_CL2HPP "Use cl2.hpp installed on system" OFF)
 
 IF(BUILD_GRAPHICS)
     OPTION(USE_SYSTEM_FORGE "Use system Forge" OFF)
@@ -64,9 +65,9 @@ IF(BUILD_GRAPHICS)
 
     IF(FORGE_FOUND)
         ADD_DEFINITIONS(-DGLEW_MX -DWITH_GRAPHICS)
-        INCLUDE("${CMAKE_MODULE_PATH}/FindGLEWmx.cmake")
+        FIND_PACKAGE(GLEWmx REQUIRED)
 
-        INCLUDE_DIRECTORIES(
+        INCLUDE_DIRECTORIES(BEFORE
             ${FORGE_INCLUDE_DIRECTORIES}
             ${GLEW_INCLUDE_DIR}
             )
@@ -78,7 +79,7 @@ IF(BUILD_GRAPHICS)
 
         IF(APPLE)
             FIND_PACKAGE(X11 REQUIRED)
-            INCLUDE_DIRECTORIES(${X11_INCLUDE_DIR})
+            INCLUDE_DIRECTORIES(BEFORE ${X11_INCLUDE_DIR})
         ENDIF(APPLE)
 
     ELSE(FORGE_FOUND)
@@ -109,7 +110,7 @@ IF(${BUILD_NONFREE_SIFT})
     "Columbia.")
 ENDIF(${BUILD_NONFREE_SIFT})
 
-INCLUDE_DIRECTORIES(
+INCLUDE_DIRECTORIES(BEFORE
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/backend"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/api/c"
@@ -149,12 +150,8 @@ ELSE(${UNIX}) #Windows
         # MP is multiprocess compilation. Gm- disables minimal rebuilds
         # http://stackoverflow.com/questions/6172205/how-can-i-do-a-parallel-build-in-visual-studio-2010vvvvvvvv
         # http://www.kitware.com/blog/home/post/434
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP /Gm-")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP /Gm- /bigobj")
         SET(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} /MP /Gm-")
-
-        # Builds that contain debug info require /bigobj
-        SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /bigobj")
-        SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /bigobj")
     ENDIF(MSVC)
 ENDIF()
 
@@ -223,6 +220,7 @@ ENDIF(FORGE_FOUND AND NOT USE_SYSTEM_FORGE)
 ## configuration to be used from the binary directory directly
 SET(INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include")
 SET(BACKEND_DIR "src/backend/\${lowerbackend}")
+SET(UNIFIED_DIR "src/api/unified")
 CONFIGURE_FILE(
     ${CMAKE_MODULE_PATH}/ArrayFireConfig.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/ArrayFireConfig.cmake
@@ -233,6 +231,7 @@ CONFIGURE_FILE(
 STRING(REGEX REPLACE "[^/]+" ".." reldir "${AF_INSTALL_CMAKE_DIR}")
 SET(INCLUDE_DIR "\${CMAKE_CURRENT_LIST_DIR}/${reldir}/include")
 set(BACKEND_DIR)
+set(UNIFIED_DIR)
 CONFIGURE_FILE(
     ${CMAKE_MODULE_PATH}/ArrayFireConfig.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/Install/ArrayFireConfig.cmake

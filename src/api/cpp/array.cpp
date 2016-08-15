@@ -71,25 +71,6 @@ namespace af
         }
     }
 
-    static unsigned size_of(af::dtype type)
-    {
-        switch(type) {
-        case f32: return sizeof(float);
-        case f64: return sizeof(double);
-        case s32: return sizeof(int);
-        case u32: return sizeof(unsigned);
-        case s64: return sizeof(intl);
-        case u64: return sizeof(uintl);
-        case u8 : return sizeof(unsigned char);
-        case b8 : return sizeof(unsigned char);
-        case c32: return sizeof(float) * 2;
-        case c64: return sizeof(double) * 2;
-        case s16: return sizeof(short);
-        case u16: return sizeof(unsigned short);
-        default: return sizeof(float);
-        }
-    }
-
     static unsigned numDims(const af_array arr)
     {
         unsigned nd;
@@ -282,7 +263,7 @@ namespace af
     {
         dim_t nElements;
         AF_THROW(af_get_elements(&nElements, get()));
-        return nElements * size_of(type());
+        return nElements * getSizeOf(type());
     }
 
     array array::copy() const
@@ -558,6 +539,7 @@ namespace af
     array::array_proxy&
     af::array::array_proxy::operator=(array_proxy &&other) {
         array out = other;
+        other.impl = nullptr;
         return *this = out;
     }
 #endif
@@ -930,7 +912,7 @@ af::dtype implicit_dtype(af::dtype scalar_type, af::dtype array_type)
     BINARY_OP(>=, af_ge)
     BINARY_OP(&&, af_and)
     BINARY_OP(||, af_or)
-    BINARY_OP(%, af_rem)
+    BINARY_OP(%, af_mod)
     BINARY_OP(&, af_bitand)
     BINARY_OP(|, af_bitor)
     BINARY_OP(^, af_bitxor)
@@ -1022,7 +1004,7 @@ af::dtype implicit_dtype(af::dtype scalar_type, af::dtype array_type)
 
 // array_proxy instanciations
 #define TEMPLATE_MEM_FUNC(TYPE, RETURN_TYPE, FUNC)      \
-    template <>                                         \
+    template <> AFAPI                                   \
     RETURN_TYPE array::array_proxy::FUNC() const        \
     {                                                   \
         array out = *this;                              \
@@ -1063,5 +1045,56 @@ af::dtype implicit_dtype(af::dtype scalar_type, af::dtype array_type)
     void array::unlock() const
     {
         AF_THROW(af_unlock_array(get()));
+    }
+
+    void eval(array &a, array &b)
+    {
+        af_array arrays[] = {a.get(), b.get()};
+        AF_THROW(af_eval_multiple(2, arrays));
+    }
+
+    void eval(array &a, array &b, array &c)
+    {
+        af_array arrays[] = {a.get(), b.get(), c.get()};
+        AF_THROW(af_eval_multiple(3, arrays));
+    }
+
+    void eval(array &a, array &b, array &c, array &d)
+    {
+        af_array arrays[] = {a.get(), b.get(), c.get(), d.get()};
+        AF_THROW(af_eval_multiple(4, arrays));
+    }
+
+    void eval(array &a, array &b, array &c, array &d, array &e)
+    {
+        af_array arrays[] = {a.get(), b.get(), c.get(), d.get(), e.get()};
+        AF_THROW(af_eval_multiple(5, arrays));
+    }
+
+    void eval(array &a, array &b, array &c, array &d, array &e, array &f)
+    {
+        af_array arrays[] = {a.get(), b.get(), c.get(), d.get(), e.get(), f.get()};
+        AF_THROW(af_eval_multiple(6, arrays));
+    }
+
+    void eval(int num, array **arrays)
+    {
+        std::vector<af_array> outputs(num);
+        for (int i = 0; i < num; i++) {
+            outputs[i] = arrays[i]->get();
+        }
+        AF_THROW(af_eval_multiple(num, &outputs[0]));
+    }
+
+    void setManualEvalFlag(bool flag)
+    {
+        AF_THROW(af_set_manual_eval_flag(flag));
+    }
+
+    bool getManualEvalFlag()
+    {
+        bool flag;
+        AF_THROW(af_get_manual_eval_flag(&flag));
+        return flag;
     }
 }

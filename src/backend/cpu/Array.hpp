@@ -9,7 +9,6 @@
 
 //This is the array implementation class.
 #pragma once
-#include <af/array.h>
 #include <af/dim4.hpp>
 #include <ArrayInfo.hpp>
 #include <backend.hpp>
@@ -39,6 +38,9 @@ namespace cpu
 
     using std::shared_ptr;
     using af::dim4;
+
+    template<typename T>
+    void evalMultiple(std::vector<Array<T> *> arrays);
 
     template<typename T> class Array;
 
@@ -85,12 +87,14 @@ namespace cpu
     {
         T *ptr = arr.device();
         memLock(ptr);
+
         return (void *)ptr;
     }
 
     template<typename T>
     void *getRawPtr(const Array<T>& arr)
     {
+        getQueue().sync();
         return (void *)(arr.get(false));
     }
 
@@ -174,23 +178,22 @@ namespace cpu
 
         dim4 getDataDims() const
         {
-            // This is for moddims
-            // dims and data_dims are different when moddims is used
-            return isOwner() ? info.dims() : data_dims;
+            return data_dims;
         }
 
         void setDataDims(const dim4 &new_dims)
         {
+            modDims(new_dims);
             data_dims = new_dims;
         }
 
         T* device()
         {
             getQueue().sync();
-            if (!isOwner() || data.use_count() > 1) {
+            if (!isOwner() || getOffset() || data.use_count() > 1) {
                 *this = Array<T>(dims(), get(), true, true);
             }
-            return this->data.get();
+            return this->get();
         }
 
         T* device() const
@@ -216,6 +219,8 @@ namespace cpu
         }
 
         TNJ::Node_ptr getNode() const;
+
+        friend void evalMultiple<T>(std::vector<Array<T> *> arrays);
 
         friend Array<T> createValueArray<T>(const af::dim4 &size, const T& value);
         friend Array<T> createHostDataArray<T>(const af::dim4 &size, const T * const data);

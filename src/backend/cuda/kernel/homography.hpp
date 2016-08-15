@@ -7,7 +7,6 @@
  * http://arrayfire.com/licenses/BSD-3-Clause
  ********************************************************/
 
-#include <af/defines.h>
 #include <dispatch.hpp>
 #include <err_cuda.hpp>
 #include <debug_cuda.hpp>
@@ -618,7 +617,7 @@ int computeH(
     if (htype == AF_HOMOGRAPHY_LMEDS) {
         // TODO: Improve this sorting, if the number of iterations is
         // sufficiently large, this can be *very* slow
-        kernel::sort0<float, true>(err);
+        kernel::sort0<float>(err, true);
 
         unsigned minIdx;
         float minMedian;

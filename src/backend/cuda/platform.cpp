@@ -53,6 +53,9 @@ static inline int compute2cores(int major, int minor)
         { 0x50, 128 },
         { 0x52, 128 },
         { 0x53, 128 },
+        { 0x60, 128 },
+        { 0x61, 64  },
+        { 0x62, 128 },
         {   -1, -1  },
     };
 
@@ -488,22 +491,34 @@ bool synchronize_calls() {
     return sync;
 }
 
+bool& evalFlag()
+{
+    static bool flag = true;
+    return flag;
+}
+
 }
 
 af_err afcu_get_stream(cudaStream_t* stream, int id)
 {
-    *stream = cuda::getStream(id);
+    try{
+        *stream = cuda::getStream(id);
+    } CATCHALL;
     return AF_SUCCESS;
 }
 
 af_err afcu_get_native_id(int* nativeid, int id)
 {
-    *nativeid = cuda::getDeviceNativeId(id);
+    try {
+        *nativeid = cuda::getDeviceNativeId(id);
+    } CATCHALL;
     return AF_SUCCESS;
 }
 
 af_err afcu_set_native_id(int nativeid)
 {
-    cuda::setDevice(cuda::getDeviceIdFromNativeId(nativeid));
+    try {
+        cuda::setDevice(cuda::getDeviceIdFromNativeId(nativeid));
+    } CATCHALL;
     return AF_SUCCESS;
 }

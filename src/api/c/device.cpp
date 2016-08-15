@@ -156,3 +156,110 @@ af_err af_sync(const int device)
     } CATCHALL;
     return AF_SUCCESS;
 }
+
+
+template<typename T>
+static inline void eval(af_array arr)
+{
+    getArray<T>(arr).eval();
+    return;
+}
+
+af_err af_eval(af_array arr)
+{
+    try {
+        af_dtype type = getInfo(arr).getType();
+        switch (type) {
+        case f32: eval<float  >(arr); break;
+        case f64: eval<double >(arr); break;
+        case c32: eval<cfloat >(arr); break;
+        case c64: eval<cdouble>(arr); break;
+        case s32: eval<int    >(arr); break;
+        case u32: eval<uint   >(arr); break;
+        case u8 : eval<uchar  >(arr); break;
+        case b8 : eval<char   >(arr); break;
+        case s64: eval<intl   >(arr); break;
+        case u64: eval<uintl  >(arr); break;
+        case s16: eval<short  >(arr); break;
+        case u16: eval<ushort >(arr); break;
+        default:
+            TYPE_ERROR(0, type);
+        }
+    } CATCHALL;
+
+    return AF_SUCCESS;
+}
+
+template<typename T>
+static inline void evalMultiple(int num, af_array *arrayPtrs)
+{
+    Array<T> empty = createEmptyArray<T>(dim4());
+    std::vector<Array<T>*> arrays(num, &empty);
+
+    for (int i = 0; i < num; i++) {
+        arrays[i] = reinterpret_cast<Array<T>*>(arrayPtrs[i]);
+    }
+
+    evalMultiple<T>(arrays);
+    return;
+}
+
+af_err af_eval_multiple(int num, af_array *arrays)
+{
+    try {
+        ArrayInfo info = getInfo(arrays[0]);
+        af_dtype type = info.getType();
+        dim4 dims = info.dims();
+
+        for (int i = 1; i < num; i++) {
+            ArrayInfo currInfo = getInfo(arrays[i]);
+
+            // FIXME: This needs to be removed when new functionality is added
+            if (type != currInfo.getType()) {
+                AF_ERROR("All arrays must be of same type", AF_ERR_TYPE);
+            }
+
+            if (dims != currInfo.dims()) {
+                AF_ERROR("All arrays must be of same size", AF_ERR_SIZE);
+            }
+        }
+
+        switch (type) {
+        case f32: evalMultiple<float  >(num, arrays); break;
+        case f64: evalMultiple<double >(num, arrays); break;
+        case c32: evalMultiple<cfloat >(num, arrays); break;
+        case c64: evalMultiple<cdouble>(num, arrays); break;
+        case s32: evalMultiple<int    >(num, arrays); break;
+        case u32: evalMultiple<uint   >(num, arrays); break;
+        case u8 : evalMultiple<uchar  >(num, arrays); break;
+        case b8 : evalMultiple<char   >(num, arrays); break;
+        case s64: evalMultiple<intl   >(num, arrays); break;
+        case u64: evalMultiple<uintl  >(num, arrays); break;
+        case s16: evalMultiple<short  >(num, arrays); break;
+        case u16: evalMultiple<ushort >(num, arrays); break;
+        default:
+            TYPE_ERROR(0, type);
+        }
+    } CATCHALL;
+
+    return AF_SUCCESS;
+}
+
+af_err af_set_manual_eval_flag(bool flag)
+{
+    try {
+        bool& backendFlag = evalFlag();
+        backendFlag = !flag;
+    } CATCHALL;
+    return AF_SUCCESS;
+}
+
+
+af_err af_get_manual_eval_flag(bool *flag)
+{
+    try {
+        bool backendFlag = evalFlag();
+        *flag = !backendFlag;
+    } CATCHALL;
+    return AF_SUCCESS;
+}

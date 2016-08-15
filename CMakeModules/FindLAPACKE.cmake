@@ -66,13 +66,19 @@ IF(PC_LAPACKE_FOUND)
 
 ELSE(PC_LAPACKE_FOUND)
 
+    IF ("${SIZE_OF_VOIDP}" EQUAL 8)
+        SET(MKL_LIB_DIR_SUFFIX "intel64")
+    ELSE()
+        SET(MKL_LIB_DIR_SUFFIX "ia32")
+    ENDIF()
+
     IF(LAPACKE_ROOT_DIR)
         #find libs
         FIND_LIBRARY(
             LAPACKE_LIB
             NAMES "lapacke" "LAPACKE" "liblapacke" "mkl_rt"
             PATHS ${LAPACKE_ROOT_DIR}
-            PATH_SUFFIXES "lib" "lib64" "lib/ia32" "lib/intel64"
+            PATH_SUFFIXES "lib" "lib64" "lib/${MKL_LIB_DIR_SUFFIX}"
             DOC "LAPACKE Library"
             NO_DEFAULT_PATH
             )
@@ -80,7 +86,7 @@ ELSE(PC_LAPACKE_FOUND)
             LAPACK_LIB
             NAMES "lapack" "LAPACK" "liblapack" "mkl_rt"
             PATHS ${LAPACKE_ROOT_DIR}
-            PATH_SUFFIXES "lib" "lib64" "lib/ia32" "lib/intel64"
+            PATH_SUFFIXES "lib" "lib64" "lib/${MKL_LIB_DIR_SUFFIX}"
             DOC "LAPACK Library"
             NO_DEFAULT_PATH
             )
@@ -99,8 +105,7 @@ ELSE(PC_LAPACKE_FOUND)
             PATHS
             ${PC_LAPACKE_LIBRARY_DIRS}
             ${LIB_INSTALL_DIR}
-            /opt/intel/mkl/lib/ia32
-            /opt/intel/mkl/lib/intel64
+            /opt/intel/mkl/lib/${MKL_LIB_DIR_SUFFIX}
             /usr/lib64
             /usr/lib
             /usr/local/lib64
@@ -115,8 +120,7 @@ ELSE(PC_LAPACKE_FOUND)
             PATHS
             ${PC_LAPACKE_LIBRARY_DIRS}
             ${LIB_INSTALL_DIR}
-            /opt/intel/mkl/lib/ia32
-            /opt/intel/mkl/lib/intel64
+            /opt/intel/mkl/lib/${MKL_LIB_DIR_SUFFIX}
             /usr/lib64
             /usr/lib
             /usr/local/lib64
@@ -137,11 +141,13 @@ ELSE(PC_LAPACKE_FOUND)
             /sw/include
             /opt/local/include
             DOC "LAPACKE Include Directory"
+            PATH_SUFFIXES
+            lapacke
             )
     ENDIF(LAPACKE_ROOT_DIR)
 ENDIF(PC_LAPACKE_FOUND)
 
-IF(LAPACKE_LIB AND LAPACK_LIB)
+IF(PC_LAPACKE_FOUND OR (LAPACKE_LIB AND LAPACK_LIB))
     SET(LAPACK_LIBRARIES ${LAPACKE_LIB} ${LAPACK_LIB})
 ENDIF()
 IF(LAPACKE_INCLUDES)
@@ -152,4 +158,10 @@ INCLUDE(FindPackageHandleStandardArgs)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(LAPACK DEFAULT_MSG
   LAPACK_INCLUDE_DIR LAPACK_LIBRARIES)
 
-MARK_AS_ADVANCED(LAPACK_INCLUDES LAPACK_LIBRARIES)
+MARK_AS_ADVANCED(
+  LAPACKE_ROOT_DIR
+  LAPACK_INCLUDES
+  LAPACK_LIBRARIES
+  LAPACK_LIB
+  LAPACKE_INCLUDES
+  LAPACKE_LIB)

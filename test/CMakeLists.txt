@@ -21,6 +21,10 @@ ELSE()
     INCLUDE_DIRECTORIES(${ArrayFire_INCLUDE_DIRS})
     OPTION(BUILD_NONFREE "Build Tests for nonfree algorithms" OFF)
 
+    IF(WIN32)
+        ADD_DEFINITIONS(-DOS_WIN -DNOMINMAX)
+    ENDIF(WIN32)
+
     IF(${BUILD_NONFREE})
         MESSAGE(WARNING "Building With NONFREE ON requires the following patents")
         SET(BUILD_NONFREE_SIFT ON CACHE BOOL "Build ArrayFire with SIFT")
@@ -135,11 +139,13 @@ ELSE(${USE_RELATIVE_TEST_DIR})  # Not using relative test data directory
     SET(TESTDATA_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/data")
 ENDIF(${USE_RELATIVE_TEST_DIR})
 
-IF (${CMAKE_GENERATOR} STREQUAL "Xcode")
+# Workaround for Xcode generator escaping issue, see
+# - https://cmake.org/cmake/help/v3.5/release/3.5.html#deprecated-and-removed-features
+IF (CMAKE_VERSION VERSION_LESS 3.5 AND ${CMAKE_GENERATOR} STREQUAL "Xcode")
     ADD_DEFINITIONS("-D TEST_DIR=\"\\\\\"${TESTDATA_SOURCE_DIR}\\\\\"\"")
-ELSE (${CMAKE_GENERATOR} STREQUAL "Xcode")
+ELSE (CMAKE_VERSION VERSION_LESS 3.5 AND ${CMAKE_GENERATOR} STREQUAL "Xcode")
     ADD_DEFINITIONS("-D TEST_DIR=\"\\\"${TESTDATA_SOURCE_DIR}\\\"\"")
-ENDIF (${CMAKE_GENERATOR} STREQUAL "Xcode")
+ENDIF (CMAKE_VERSION VERSION_LESS 3.5 AND ${CMAKE_GENERATOR} STREQUAL "Xcode")
 
 IF(NOT ${USE_RELATIVE_TEST_DIR})
     # Check if data exists
@@ -189,17 +195,38 @@ ENDIF()
 # CUDA Backend
 IF (${CUDA_FOUND})
     IF(${ArrayFire_CUDA_FOUND})  # variable defined by FIND(ArrayFire ...)
-        FIND_LIBRARY( CUDA_NVVM_LIBRARY
+        # Find NVVM
+        FIND_LIBRARY(CUDA_nvvm_LIBRARY
           NAMES "nvvm"
-          PATH_SUFFIXES "nvvm/lib64" "nvvm/lib"
+          PATH_SUFFIXES "nvvm/lib64" "nvvm/lib" "nmmv/lib/x64"
           PATHS ${CUDA_TOOLKIT_ROOT_DIR}
           DOC "CUDA NVVM Library"
           )
-        MARK_AS_ADVANCED(CUDA_NVVM_LIBRARY)
+        MARK_AS_ADVANCED(CUDA_nvvm_LIBRARY)
+
+        # If CUDA_CUDA_LIBRARY is not found, check for Stub in CUDA Toolkit
+        IF(NOT CUDA_CUDA_LIBRARY)
+            MESSAGE(SEND_ERROR "CMake CUDA Variable CUDA_CUDA_LIBRARY Not found.")
+            MESSAGE("CUDA Driver Library (libcuda.so/libcuda.dylib/cuda.lib) cannot be found.")
+            FIND_FILE(CUDA_CUDA_LIBRARY_STUB
+                      NAMES "libcuda.so" "libcuda.dylib" "cuda.lib"
+                      PATHS ${CUDA_TOOLKIT_ROOT_DIR}
+                      PATH_SUFFIXES "lib64" "lib64/stubs" "lib" "lib/stubs" "lib/x64" "lib/Win32"
+                      DOC "CUDA Library STUB"
+                     )
+            IF(CUDA_CUDA_LIBRARY_STUB)
+                MESSAGE("You can use the library stub available in the CUDA Toolkit: ${CUDA_CUDA_LIBRARY_STUB}")
+                MESSAGE("Run the following commands (Linux) to set it up:")
+                MESSAGE("ln -s ${CUDA_CUDA_LIBRARY_STUB} /usr/lib/libcuda.so.1")
+                MESSAGE("ln -s /usr/lib/libcuda.so.1 /usr/lib/libcuda.so")
+            ENDIF()
+            MESSAGE(FATAL_ERROR "Ending CMake configuration because of missing CUDA_CUDA_LIBRARY")
+        ENDIF(NOT CUDA_CUDA_LIBRARY)
+
         # If OSX && CLANG && CUDA < 7
         IF("${APPLE}" AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" AND ${CUDA_VERSION_MAJOR} VERSION_LESS 7)
             OPTION(BUILD_CUDA "Build ArrayFire Tests for CUDA backend" ON)
-            CHECK_AND_CREATE_TESTS(cuda ${ArrayFire_CUDA_LIBRARIES} "${GTEST_LIBRARIES_STDLIB}" "${CUDA_CUBLAS_LIBRARIES};${CUDA_LIBRARIES};${CUDA_cusolver_LIBRARY};${CUDA_CUFFT_LIBRARIES};${CUDA_NVVM_LIBRARY};${CUDA_CUDA_LIBRARY}")
+            CHECK_AND_CREATE_TESTS(cuda ${ArrayFire_CUDA_LIBRARIES} "${GTEST_LIBRARIES_STDLIB}" "${CUDA_CUBLAS_LIBRARIES};${CUDA_LIBRARIES};${CUDA_cusolver_LIBRARY};${CUDA_CUFFT_LIBRARIES};${CUDA_nvvm_LIBRARY};${CUDA_CUDA_LIBRARY}")
 
             FOREACH(FILE ${FILES})
                 GET_FILENAME_COMPONENT(FNAME ${FILE} NAME_WE)
@@ -211,14 +238,14 @@ IF (${CUDA_FOUND})
         # ELSE OSX && CLANG && CUDA < 7
         ELSE("${APPLE}" AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" AND ${CUDA_VERSION_MAJOR} VERSION_LESS 7)
             OPTION(BUILD_CUDA "Build ArrayFire Tests for CUDA backend" ON)
-            CHECK_AND_CREATE_TESTS(cuda ${ArrayFire_CUDA_LIBRARIES} "${GTEST_LIBRARIES}" "${CUDA_CUBLAS_LIBRARIES};${CUDA_LIBRARIES};${CUDA_cusolver_LIBRARY};${CUDA_CUFFT_LIBRARIES};${CUDA_NVVM_LIBRARY};${CUDA_CUDA_LIBRARY}")
+            CHECK_AND_CREATE_TESTS(cuda ${ArrayFire_CUDA_LIBRARIES} "${GTEST_LIBRARIES}" "${CUDA_CUBLAS_LIBRARIES};${CUDA_LIBRARIES};${CUDA_cusolver_LIBRARY};${CUDA_CUFFT_LIBRARIES};${CUDA_nvvm_LIBRARY};${CUDA_CUDA_LIBRARY}")
 
         ENDIF("${APPLE}" AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" AND ${CUDA_VERSION_MAJOR} VERSION_LESS 7)
 
     ELSEIF(TARGET afcuda)        # variable defined by the ArrayFire build tree
         # If OSX && CLANG && CUDA < 7
         IF("${APPLE}" AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" AND ${CUDA_VERSION_MAJOR} VERSION_LESS 7)
-            CHECK_AND_CREATE_TESTS(cuda afcuda "${GTEST_LIBRARIES_STDLIB}" "${CUDA_CUBLAS_LIBRARIES};${CUDA_LIBRARIES};${CUDA_cusolver_LIBRARY};${CUDA_CUFFT_LIBRARIES};${CUDA_NVVM_LIBRARY};${CUDA_CUDA_LIBRARY}")
+            CHECK_AND_CREATE_TESTS(cuda afcuda "${GTEST_LIBRARIES_STDLIB}" "${CUDA_CUBLAS_LIBRARIES};${CUDA_LIBRARIES};${CUDA_cusolver_LIBRARY};${CUDA_CUFFT_LIBRARIES};${CUDA_nvvm_LIBRARY};${CUDA_CUDA_LIBRARY}")
 
             FOREACH(FILE ${FILES})
                 GET_FILENAME_COMPONENT(FNAME ${FILE} NAME_WE)
@@ -229,7 +256,7 @@ IF (${CUDA_FOUND})
 
         # ELSE OSX && CLANG && CUDA < 7
         ELSE("${APPLE}" AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" AND ${CUDA_VERSION_MAJOR} VERSION_LESS 7)
-            CHECK_AND_CREATE_TESTS(cuda afcuda "${GTEST_LIBRARIES}" "${CUDA_CUBLAS_LIBRARIES};${CUDA_LIBRARIES};${CUDA_cusolver_LIBRARY};${CUDA_CUFFT_LIBRARIES};${CUDA_NVVM_LIBRARY};${CUDA_CUDA_LIBRARY}")
+            CHECK_AND_CREATE_TESTS(cuda afcuda "${GTEST_LIBRARIES}" "${CUDA_CUBLAS_LIBRARIES};${CUDA_LIBRARIES};${CUDA_cusolver_LIBRARY};${CUDA_CUFFT_LIBRARIES};${CUDA_nvvm_LIBRARY};${CUDA_CUDA_LIBRARY}")
 
         ENDIF("${APPLE}" AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" AND ${CUDA_VERSION_MAJOR} VERSION_LESS 7)
     ELSE()

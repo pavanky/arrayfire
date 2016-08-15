@@ -6,6 +6,14 @@ FIND_PACKAGE(Boost REQUIRED)
 INCLUDE("${CMAKE_MODULE_PATH}/CLKernelToH.cmake")
 INCLUDE("${CMAKE_MODULE_PATH}/FindNVVM.cmake")
 
+OPTION(USE_LIBDEVICE "Use libdevice for CUDA JIT" ON)
+
+MARK_AS_ADVANCED(
+    CUDA_BUILD_CUBIN
+    CUDA_BUILD_EMULATION
+    CUDA_SDK_ROOT_DIR
+    CUDA_VERBOSE_BUILD)
+
 # Disables running cuda_compute_check.c when build windows using remote
 OPTION(CUDA_COMPUTE_DETECT "Run autodetection of CUDA Architecture" ON)
 MARK_AS_ADVANCED(CUDA_COMPUTE_DETECT)
@@ -22,6 +30,9 @@ IF(    CUDA_COMPUTE_20
     OR CUDA_COMPUTE_50
     OR CUDA_COMPUTE_52
     OR CUDA_COMPUTE_53
+    OR CUDA_COMPUTE_60
+    OR CUDA_COMPUTE_61
+    OR CUDA_COMPUTE_62
     )
     SET(FALLBACK OFF)
 ELSE()
@@ -30,8 +41,10 @@ ENDIF()
 
 LIST(LENGTH COMPUTES_DETECTED_LIST COMPUTES_LEN)
 IF(${COMPUTES_LEN} EQUAL 0 AND ${FALLBACK})
-    MESSAGE(STATUS "No computes detected. Fall back to 20, 30, 50")
-    LIST(APPEND COMPUTES_DETECTED_LIST "20" "30" "50")
+    MESSAGE(STATUS "No computes detected. Fall back to 20, 30, 50, 60")
+    MESSAGE(STATUS "You can use -DCOMPUTES_DETECTED_LIST=\"AB;XY\" (semicolon separated list of CUDA Compute versions to enable the specified computes")
+    MESSAGE(STATUS "Individual compute versions flags are also available under CMake Advance options")
+    LIST(APPEND COMPUTES_DETECTED_LIST "20" "30" "50" "60")
 ENDIF()
 
 LIST(LENGTH COMPUTES_DETECTED_LIST COMPUTES_LEN)
@@ -50,7 +63,7 @@ MACRO(SET_COMPUTE VERSION)
 ENDMACRO(SET_COMPUTE)
 
 # Iterate over compute versions. Create variables and enable computes if needed
-FOREACH(VER 20 30 32 35 37 50 52 53)
+FOREACH(VER 20 30 32 35 37 50 52 53 60 61 62)
     OPTION(CUDA_COMPUTE_${VER} "CUDA Compute Capability ${VER}" OFF)
     MARK_AS_ADVANCED(CUDA_COMPUTE_${VER})
     IF(${CUDA_COMPUTE_${VER}})
@@ -59,6 +72,22 @@ FOREACH(VER 20 30 32 35 37 50 52 53)
 ENDFOREACH()
 
 IF(UNIX)
+    # GCC 5.3 and above give errors for mempcy from <string.h>
+    # This is a (temporary) fix for that
+    # This was fixed in CUDA 8.0
+    IF("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "5.3.0")
+        IF(${CUDA_VERSION_MAJOR} LESS 8)
+            ADD_DEFINITIONS(-D_FORCE_INLINES)
+        ENDIF(${CUDA_VERSION_MAJOR} LESS 8)
+
+        # GCC 6.0 and above default to g++14, enabling c++11 features by default
+        # Enabling c++11 with nvcc 7.5 + gcc 6.x doesn't seem to work
+        # Only solution for now is to force use c++03 for gcc 6.x
+        IF(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "6.0.0")
+          SET(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -Xcompiler -std=c++98")
+        ENDIF()
+    ENDIF()
+
     # Forcing STRICT ANSI should resolve a bunch of issues that NVIDIA seems to face with GCC compilers.
     ADD_DEFINITIONS(-D__STRICT_ANSI__)
     SET(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -Xcompiler -fvisibility=hidden)
@@ -77,14 +106,23 @@ IF(CMAKE_VERSION VERSION_LESS 3.2)
     IF(${CUDA_cusolver_LIBRARY} MATCHES " ")
         UNSET(CUDA_cusolver_LIBRARY CACHE)  # When going from higher version to lower version
     ENDIF()
-    FIND_LIBRARY (
-        CUDA_cusolver_LIBRARY
-        NAMES "cusolver"
-        PATHS ${CUDA_TOOLKIT_ROOT_DIR}
-        PATH_SUFFIXES "lib64" "lib/x64" "lib"
-        DOC "CUDA cusolver Library"
-        NO_DEFAULT_PATH
-        )
+
+    # Use CUDA_cusolver_DIR to keep track of CUDA Toolkit for which cusolver was found.
+    # If the toolkit changed, then find cusolver again
+    IF(NOT "${CUDA_cusolver_DIR}" STREQUAL "${CUDA_TOOLKIT_ROOT_DIR}")
+        UNSET(CUDA_cusolver_DIR CACHE)
+        UNSET(CUDA_cusolver_LIBRARY CACHE)
+        FIND_LIBRARY (
+            CUDA_cusolver_LIBRARY
+            NAMES "cusolver"
+            PATHS ${CUDA_TOOLKIT_ROOT_DIR}
+            PATH_SUFFIXES "lib64" "lib/x64" "lib"
+            DOC "CUDA cusolver Library"
+            NO_DEFAULT_PATH
+            )
+        SET(CUDA_cusolver_DIR "${CUDA_TOOLKIT_ROOT_DIR}" CACHE INTERNAL "CUDA cusolver Root Directory")
+    ENDIF()
+    MARK_AS_ADVANCED(CUDA_cusolver_LIBRARY)
 ENDIF(CMAKE_VERSION VERSION_LESS 3.2)
 
 IF(${CUDA_VERSION_MAJOR} LESS 7 AND CUDA_cusolver_LIBRARY)
@@ -142,7 +180,7 @@ INCLUDE_DIRECTORIES(
     ${CUDA_INCLUDE_DIRS}
     "${CMAKE_SOURCE_DIR}/src/backend/cuda"
     "${CMAKE_CURRENT_BINARY_DIR}"
-    ${CUDA_NVVM_INCLUDE_DIR}
+    ${CUDA_nvvm_INCLUDE_DIR}
     )
 
 IF(CUDA_LAPACK_CPU_FALLBACK)
@@ -156,7 +194,6 @@ FILE(GLOB cuda_headers
 FILE(GLOB cuda_sources
     "*.cu"
     "*.cpp"
-    "sort_by_key/*.cu"
     "kernel/*.cu")
 
 FILE(GLOB jit_sources
@@ -167,6 +204,12 @@ FILE(GLOB kernel_headers
 
 FILE(GLOB ptx_sources
     "JIT/*.cu")
+
+LIST(SORT cuda_headers)
+LIST(SORT cuda_sources)
+LIST(SORT jit_sources)
+LIST(SORT kernel_headers)
+LIST(SORT ptx_sources)
 
 SOURCE_GROUP(backend\\cuda\\Headers FILES ${cuda_headers})
 SOURCE_GROUP(backend\\cuda\\Sources FILES ${cuda_sources})
@@ -181,6 +224,8 @@ IF(CUDA_LAPACK_CPU_FALLBACK)
 
     SOURCE_GROUP(backend\\cuda\\cpu_lapack\\Headers FILES ${cpu_lapack_headers})
     SOURCE_GROUP(backend\\cuda\\cpu_lapack\\Sources FILES ${cpu_lapack_sources})
+    LIST(SORT cpu_lapack_headers)
+    LIST(SORT cpu_lapack_sources)
 ENDIF()
 
 FILE(GLOB backend_headers
@@ -191,6 +236,9 @@ FILE(GLOB backend_headers
 FILE(GLOB backend_sources
     "../*.cpp"
     )
+
+LIST(SORT backend_headers)
+LIST(SORT backend_sources)
 
 SOURCE_GROUP(backend\\Headers FILES ${backend_headers})
 SOURCE_GROUP(backend\\Sources FILES ${backend_sources})
@@ -204,6 +252,9 @@ FILE(GLOB c_sources
     "../../api/c/*.cpp"
     )
 
+LIST(SORT c_headers)
+LIST(SORT c_sources)
+
 SOURCE_GROUP(api\\c\\Headers FILES ${c_headers})
 SOURCE_GROUP(api\\c\\Sources FILES ${c_sources})
 
@@ -211,7 +262,13 @@ FILE(GLOB cpp_sources
     "../../api/cpp/*.cpp"
     )
 
+LIST(SORT cpp_sources)
+
 SOURCE_GROUP(api\\cpp\\Sources FILES ${cpp_sources})
+
+INCLUDE("${CMAKE_CURRENT_SOURCE_DIR}/kernel/thrust_sort_by_key/CMakeLists.txt")
+
+INCLUDE("${CMAKE_CURRENT_SOURCE_DIR}/kernel/scan_by_key/CMakeLists.txt")
 
 LIST(LENGTH COMPUTE_VERSIONS COMPUTE_COUNT)
 IF(${COMPUTE_COUNT} EQUAL 1)
@@ -220,7 +277,13 @@ ELSE()
     SET(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -arch sm_20")
 ENDIF()
 
+# PUSH/POP --keep-device-functions flag. Only available in CUDA 8 or newer
+SET(OLD_CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS})
+IF(${CUDA_VERSION_MAJOR} GREATER 7) # CUDA 8 or newer
+    SET(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} --keep-device-functions")
+ENDIF()
 CUDA_COMPILE_PTX(ptx_files ${ptx_sources})
+SET(CUDA_NVCC_FLAGS ${OLD_CUDA_NVCC_FLAGS})
 
 set(cuda_ptx "")
 foreach(ptx_src_file ${ptx_sources})
@@ -253,6 +316,48 @@ CL_KERNEL_TO_H(
     EOF "1"
     )
 
+SET(libdevice_bc "")
+IF (USE_LIBDEVICE)
+  SET(libdevice_computes "")
+  LIST(APPEND libdevice_computes "20" "30" "35" "50")
+  FOREACH(libdevice_compute ${libdevice_computes})
+    SET(_libdevice_bc_file "${CUDA_NVVM_HOME}/libdevice/libdevice.compute_${libdevice_compute}.10.bc")
+    SET(_libdevice_bc_copy "${CMAKE_BINARY_DIR}/src/backend/cuda/compute_${libdevice_compute}.bc")
+    IF (EXISTS ${_libdevice_bc_file})
+      ADD_CUSTOM_COMMAND(
+        OUTPUT "${_libdevice_bc_copy}"
+        DEPENDS "${_libdevice_bc_file}"
+        COMMAND ${CMAKE_COMMAND} -E copy "${_libdevice_bc_file}" "${_libdevice_bc_copy}")
+      LIST(APPEND libdevice_bc ${_libdevice_bc_copy})
+      ADD_DEFINITIONS(-D"__LIBDEVICE_COMPUTE_${libdevice_compute}")
+    ENDIF()
+  ENDFOREACH()
+ENDIF()
+
+LIST(LENGTH libdevice_bc libdevice_bc_len)
+
+IF (${libdevice_bc_len} GREATER 0)
+
+  SET(libdevice_headers
+    "libdevice_headers")
+
+  CL_KERNEL_TO_H(
+    SOURCES ${libdevice_bc}
+    VARNAME libdevice_files
+    EXTENSION "hpp"
+    OUTPUT_DIR ${libdevice_headers}
+    TARGETS libdevice_targets
+    NAMESPACE "cuda"
+    BINARY TRUE
+    EOF "1"
+    )
+
+  MESSAGE(STATUS "LIBDEVICE found.")
+  ADD_DEFINITIONS(-DUSE_LIBDEVICE)
+ELSE()
+  MESSAGE(STATUS "LIBDEVICE not found on system. CUDA JIT may be slower")
+ENDIF()
+
 IF("${APPLE}")
     ADD_DEFINITIONS(-D__STRICT_ANSI__)
     IF(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
@@ -267,6 +372,16 @@ IF("${APPLE}")
         SET(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${STD_LIB_BINDING}")
         SET(CUDA_HOST_COMPILER "/usr/bin/clang++")
     ENDIF()
+ELSE()
+  IF(UNIX)
+    IF(${CUDA_VERSION_MAJOR} GREATER 7)
+      FIND_PACKAGE(OpenMP)
+      IF(OPENMP_FOUND)
+        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+      ENDIF()
+    ENDIF()
+  ENDIF()
 ENDIF()
 
 ## Copied from FindCUDA.cmake
@@ -313,6 +428,24 @@ macro(MY_CUDA_ADD_LIBRARY cuda_target)
 
 endmacro()
 
+IF(NOT CUDA_CUDA_LIBRARY)
+    MESSAGE(SEND_ERROR "CMake CUDA Variable CUDA_CUDA_LIBRARY Not found.")
+    MESSAGE("CUDA Driver Library (libcuda.so/libcuda.dylib/cuda.lib) cannot be found.")
+    FIND_FILE(CUDA_CUDA_LIBRARY_STUB
+              NAMES "libcuda.so" "libcuda.dylib" "cuda.lib"
+              PATHS ${CUDA_TOOLKIT_ROOT_DIR}
+              PATH_SUFFIXES "lib64" "lib64/stubs" "lib" "lib/stubs" "lib/x64" "lib/Win32"
+              DOC "CUDA Library STUB"
+             )
+    IF(CUDA_CUDA_LIBRARY_STUB)
+        MESSAGE("You can use the library stub available in the CUDA Toolkit: ${CUDA_CUDA_LIBRARY_STUB}")
+        MESSAGE("Run the following commands (Linux) to set it up:")
+        MESSAGE("ln -s ${CUDA_CUDA_LIBRARY_STUB} /usr/lib/libcuda.so.1")
+        MESSAGE("ln -s /usr/lib/libcuda.so.1 /usr/lib/libcuda.so")
+    ENDIF()
+    MESSAGE(FATAL_ERROR "Ending CMake configuration because of missing CUDA_CUDA_LIBRARY")
+ENDIF(NOT CUDA_CUDA_LIBRARY)
+
 MY_CUDA_ADD_LIBRARY(afcuda SHARED
                 ${cuda_headers}
                 ${cuda_sources}
@@ -325,15 +458,21 @@ MY_CUDA_ADD_LIBRARY(afcuda SHARED
                 ${c_headers}
                 ${c_sources}
                 ${cpp_sources}
+                ${thrust_sort_by_key_sources}
+                ${scan_by_key_sources}
                 OPTIONS ${CUDA_GENERATE_CODE})
 
 ADD_DEPENDENCIES(afcuda ${ptx_targets})
+
+IF (${libdevice_bc_len} GREATER 0)
+  ADD_DEPENDENCIES(afcuda ${libdevice_targets})
+ENDIF()
 
 TARGET_LINK_LIBRARIES(afcuda    PRIVATE ${CUDA_CUBLAS_LIBRARIES}
                                 PRIVATE ${CUDA_LIBRARIES}
                                 PRIVATE ${FreeImage_LIBS}
                                 PRIVATE ${CUDA_CUFFT_LIBRARIES}
-                                PRIVATE ${CUDA_NVVM_LIBRARIES}
+                                PRIVATE ${CUDA_nvvm_LIBRARY}
                                 PRIVATE ${CUDA_CUDA_LIBRARY})
 
 IF(FORGE_FOUND)
