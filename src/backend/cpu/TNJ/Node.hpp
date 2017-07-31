@@ -26,6 +26,8 @@ namespace TNJ
     typedef std::unordered_map<Node *, int> Node_map_t;
     typedef Node_map_t::iterator Node_map_iter;
 
+    const int VECTOR_LENGTH = 256;
+
     class Node
     {
 
@@ -76,12 +78,12 @@ namespace TNJ
     class TNode : public Node
     {
     public:
-        T m_val;
+        std::array<T, VECTOR_LENGTH> m_val;
     public:
         TNode(T val, const int height, const std::vector<Node_ptr> children) :
-            Node(height, children),
-            m_val(val)
+            Node(height, children)
             {
+                m_val.fill(val);
             }
     };
 

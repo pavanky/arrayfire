@@ -12,6 +12,8 @@
 #include <vector>
 #include "Node.hpp"
 #include <mutex>
+#include <algorithm>
+
 namespace cpu
 {
 
@@ -65,12 +67,12 @@ namespace TNJ
             l_off += (z < (int)m_dims[2]) * z * m_strides[2];
             l_off += (y < (int)m_dims[1]) * y * m_strides[1];
             l_off += (x < (int)m_dims[0]) * x;
-            this->m_val = m_ptr[l_off];
+            std::copy(m_ptr + l_off, m_ptr + VECTOR_LENGTH, this->m_val.begin());
         }
 
         void calc(int idx)
         {
-            this->m_val = m_ptr[idx];
+            std::copy(m_ptr + idx, m_ptr + VECTOR_LENGTH, this->m_val.begin());
         }
 
         void getInfo(unsigned &len, unsigned &buf_count, unsigned &bytes)

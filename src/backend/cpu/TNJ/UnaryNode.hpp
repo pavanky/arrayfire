@@ -46,14 +46,19 @@ namespace TNJ
 
         void calc(int x, int y, int z, int w)
         {
-            this->m_val = m_op.eval(m_child->m_val);
+            std::transform(m_child->m_val.begin(), m_child->m_val.end(),
+                           this->m_val.begin(), [this](Ti val) -> To {
+                               return m_op.eval(val);
+                           });
         }
 
         void calc(int idx)
         {
-            this->m_val = m_op.eval(m_child->m_val);
+            std::transform(m_child->m_val.begin(), m_child->m_val.end(),
+                           this->m_val.begin(), [this](Ti val) -> To {
+                               return m_op.eval(val);
+                           });
         }
-
     };
 
 }

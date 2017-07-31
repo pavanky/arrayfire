@@ -12,6 +12,7 @@
 #include <platform.hpp>
 #include <TNJ/Node.hpp>
 #include <vector>
+#include <algorithm>
 
 namespace cpu
 {
@@ -43,12 +44,16 @@ void evalMultiple(std::vector<Param<T>> arrays, std::vector<TNJ::Node_ptr> outpu
 
     if (is_linear) {
         int num = arrays[0].dims().elements();
-        for (int i = 0; i < num; i++) {
+        for (int i = 0; i < num; i += TNJ::VECTOR_LENGTH) {
             for (int n = 0; n < (int)full_nodes.size(); n++) {
                 full_nodes[n]->calc(i);
             }
             for (int n = 0; n < (int)output_nodes.size(); n++) {
-                ptrs[n][i] = output_nodes[n]->m_val;
+                for (int off = 0; off < TNJ::VECTOR_LENGTH; off++) {
+                    std::copy(output_nodes[n]->m_val.begin(),
+                              output_nodes[n]->m_val.end(),
+                              ptrs[n] + i);
+                }
             }
         }
     } else {
@@ -61,14 +66,16 @@ void evalMultiple(std::vector<Param<T>> arrays, std::vector<TNJ::Node_ptr> outpu
                 for (int y = 0; y < (int)odims[1]; y++) {
                     dim_t offy = y * ostrs[1] + offz;
 
-                    for (int x = 0; x < (int)odims[0]; x++) {
+                    for (int x = 0; x < (int)odims[0]; x += TNJ::VECTOR_LENGTH) {
                         dim_t id = x + offy;
 
                         for (int n = 0; n < (int)full_nodes.size(); n++) {
                             full_nodes[n]->calc(x, y, z, w);
                         }
                         for (int n = 0; n < (int)output_nodes.size(); n++) {
-                            ptrs[n][id] = output_nodes[n]->m_val;
+                            std::copy(output_nodes[n]->m_val.begin(),
+                                      output_nodes[n]->m_val.end(),
+                                      ptrs[n] + id);
                         }
                     }
                 }
@@ -99,11 +106,13 @@ void evalArray(Param<T> arr, TNJ::Node_ptr node)
     TNJ::TNode<T> *output_node = reinterpret_cast<TNJ::TNode<T> *>(full_nodes.back());
     if (is_linear) {
         int num = arr.dims().elements();
-        for (int i = 0; i < num; i++) {
+        for (int i = 0; i < num; i += TNJ::VECTOR_LENGTH) {
             for (int n = 0; n < (int)full_nodes.size(); n++) {
                 full_nodes[n]->calc(i);
             }
-            ptr[i] = output_node->m_val;
+            std::copy(output_node->m_val.begin(),
+                      output_node->m_val.end(),
+                      ptr + i);
         }
     } else {
         for (int w = 0; w < (int)odims[3]; w++) {
@@ -115,13 +124,16 @@ void evalArray(Param<T> arr, TNJ::Node_ptr node)
                 for (int y = 0; y < (int)odims[1]; y++) {
                     dim_t offy = y * ostrs[1] + offz;
 
-                    for (int x = 0; x < (int)odims[0]; x++) {
-                        dim_t id = x + offy;
+                    for (int x = 0; x < (int)odims[0]; x += TNJ::VECTOR_LENGTH) {
+                        dim_t id =  x + offy;
 
                         for (int n = 0; n < (int)full_nodes.size(); n++) {
                             full_nodes[n]->calc(x, y, z, w);
                         }
-                        ptr[id] = output_node->m_val;
+
+                        std::copy(output_node->m_val.begin(),
+                                  output_node->m_val.end(),
+                                  ptr + id);
                     }
                 }
             }

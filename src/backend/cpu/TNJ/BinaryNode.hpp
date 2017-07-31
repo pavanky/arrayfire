@@ -12,6 +12,7 @@
 #include <vector>
 #include <math.hpp>
 #include "Node.hpp"
+#include <algorithm>
 
 namespace cpu
 {
@@ -46,12 +47,20 @@ namespace TNJ
 
         void calc(int x, int y, int z, int w)
         {
-            this->m_val = m_op.eval(m_lhs->m_val, m_rhs->m_val);
+            std::transform(m_lhs->m_val.begin(), m_lhs->m_val.end(),
+                           m_rhs->m_val.begin(), this->m_val.begin(),
+                           [this](Ti lval, Ti rval) -> To {
+                               return m_op.eval(lval, rval);
+                           });
         }
 
         void calc(int idx)
         {
-            this->m_val = m_op.eval(m_lhs->m_val, m_rhs->m_val);
+            std::transform(m_lhs->m_val.begin(), m_lhs->m_val.end(),
+                           m_rhs->m_val.begin(), this->m_val.begin(),
+                           [this](Ti lval, Ti rval) -> To {
+                               return m_op.eval(lval, rval);
+                           });
         }
     };
 
