@@ -12,17 +12,16 @@
 #include <vector>
 #include <math.hpp>
 #include "Node.hpp"
+#include <functional>
 
 namespace cpu
 {
-
     template<typename To, typename Ti, af_op_t op>
     struct UnOp
     {
-        To eval(Ti in)
-        {
-            return scalar<To>(0);
-        }
+        std::function<To(Ti)> func = [](Ti val) -> To {
+            return To(val);
+        };
     };
 
 namespace TNJ
@@ -33,31 +32,33 @@ namespace TNJ
     {
 
     protected:
-        UnOp <To, Ti, op> m_op;
+        std::function<To(Ti)> m_func;
         TNode<Ti> *m_child;
 
     public:
         UnaryNode(Node_ptr child) :
             TNode<To>(0, child->getHeight() + 1, {child}),
+            m_func(UnOp<To, Ti, op>().func),
             m_child(reinterpret_cast<TNode<Ti> *>(child.get()))
         {
         }
 
-
-        void calc(int x, int y, int z, int w)
+        void calc(int x, int y, int z, int w, int lim)
         {
-            std::transform(m_child->m_val.begin(), m_child->m_val.end(),
-                           this->m_val.begin(), [this](Ti val) -> To {
-                               return m_op.eval(val);
-                           });
+            Ti *in_ptr = &(m_child->m_val.front());
+            To *out_ptr = &(this->m_val.front());
+            for(int i = 0; i < lim; i++) {
+                out_ptr[i] = m_func(in_ptr[i]);
+            }
         }
 
-        void calc(int idx)
+        void calc(int idx, int lim)
         {
-            std::transform(m_child->m_val.begin(), m_child->m_val.end(),
-                           this->m_val.begin(), [this](Ti val) -> To {
-                               return m_op.eval(val);
-                           });
+            Ti *in_ptr = &(m_child->m_val.front());
+            To *out_ptr = &(this->m_val.front());
+            for(int i = 0; i < lim; i++) {
+                out_ptr[i] = m_func(in_ptr[i]);
+            }
         }
     };
 

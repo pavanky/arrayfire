@@ -60,19 +60,27 @@ namespace TNJ
                            });
         }
 
-        void calc(int x, int y, int z, int w)
+        void calc(int x, int y, int z, int w, int lim)
         {
             dim_t l_off = 0;
             l_off += (w < (int)m_dims[3]) * w * m_strides[3];
             l_off += (z < (int)m_dims[2]) * z * m_strides[2];
             l_off += (y < (int)m_dims[1]) * y * m_strides[1];
-            l_off += (x < (int)m_dims[0]) * x;
-            std::copy(m_ptr + l_off, m_ptr + VECTOR_LENGTH, this->m_val.begin());
+            bool is_linear_x = (x < (int)m_dims[0]);
+            T *in_ptr = m_ptr + l_off;
+            T *out_ptr = &(this->m_val.front());
+            for(int i = 0; i < lim; i++) {
+                out_ptr[i] = in_ptr[(x + i) * is_linear_x];
+            }
         }
 
-        void calc(int idx)
+        void calc(int idx, int lim)
         {
-            std::copy(m_ptr + idx, m_ptr + VECTOR_LENGTH, this->m_val.begin());
+            T *in_ptr = m_ptr + idx;
+            T *out_ptr = &(this->m_val.front());
+            for(int i = 0; i < lim; i++) {
+                out_ptr[i] = in_ptr[i];
+            }
         }
 
         void getInfo(unsigned &len, unsigned &buf_count, unsigned &bytes)

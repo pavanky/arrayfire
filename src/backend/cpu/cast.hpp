@@ -23,56 +23,40 @@ namespace cpu
 template<typename To, typename Ti>
 struct UnOp<To, Ti, af_cast_t>
 {
-    To eval(Ti in)
-    {
-        return To(in);
-    }
+    typedef std::function<To(Ti)> func_t;
+    func_t func = [](Ti val) -> To {
+        return To(val);
+    };
 };
 
 template<typename To>
 struct UnOp<To, std::complex<float>, af_cast_t>
 {
-    To eval(std::complex<float> in)
-    {
+    typedef std::complex<float> Ti;
+    typedef std::function<To(Ti)> func_t;
+    func_t func = [](Ti in) -> To {
         return To(std::abs(in));
-    }
+    };
 };
 
 template<typename To>
 struct UnOp<To, std::complex<double>, af_cast_t>
 {
-    To eval(std::complex<double> in)
-    {
+    typedef std::complex<double> Ti;
+    typedef std::function<To(Ti)> func_t;
+    func_t func = [](Ti in) -> To {
         return To(std::abs(in));
-    }
-};
-
-template<>
-struct UnOp<std::complex<float>, std::complex<double>, af_cast_t>
-{
-    std::complex<float> eval(std::complex<double> in)
-    {
-        return std::complex<float>(in);
-    }
-};
-
-template<>
-struct UnOp<std::complex<double>, std::complex<float>, af_cast_t>
-{
-    std::complex<double> eval(std::complex<float> in)
-    {
-        return std::complex<double>(in);
-    }
+    };
 };
 
 #define CAST_B8(T)                              \
     template<>                                  \
     struct UnOp<char, T, af_cast_t>             \
     {                                           \
-        char eval(T in)                         \
-        {                                       \
+        std::function<char(T)> func =           \
+            [](T in) -> char {                  \
             return char(in != 0);               \
-        }                                       \
+        };                                      \
     };                                          \
 
 CAST_B8(float)

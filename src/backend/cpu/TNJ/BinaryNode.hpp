@@ -45,22 +45,24 @@ namespace TNJ
         {
         }
 
-        void calc(int x, int y, int z, int w)
+        void calc(int x, int y, int z, int w, int lim)
         {
-            std::transform(m_lhs->m_val.begin(), m_lhs->m_val.end(),
-                           m_rhs->m_val.begin(), this->m_val.begin(),
-                           [this](Ti lval, Ti rval) -> To {
-                               return m_op.eval(lval, rval);
-                           });
+            Ti *lhs_ptr = &(m_lhs->m_val.front());
+            Ti *rhs_ptr = &(m_rhs->m_val.front());
+            To *out_ptr = &(this->m_val.front());
+            for (int i = 0; i < lim; i++) {
+                out_ptr[i] = m_op.eval(lhs_ptr[i], rhs_ptr[i]);
+            }
         }
 
-        void calc(int idx)
+        void calc(int idx, int lim)
         {
-            std::transform(m_lhs->m_val.begin(), m_lhs->m_val.end(),
-                           m_rhs->m_val.begin(), this->m_val.begin(),
-                           [this](Ti lval, Ti rval) -> To {
-                               return m_op.eval(lval, rval);
-                           });
+            Ti *lhs_ptr = &(m_lhs->m_val.front());
+            Ti *rhs_ptr = &(m_rhs->m_val.front());
+            To *out_ptr = &(this->m_val.front());
+            for (int i = 0; i < lim; i++) {
+                out_ptr[i] = m_op.eval(lhs_ptr[i], rhs_ptr[i]);
+            }
         }
     };
 

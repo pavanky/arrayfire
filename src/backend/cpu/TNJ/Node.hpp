@@ -55,11 +55,11 @@ namespace TNJ
 
         int getHeight() { return m_height; }
 
-        virtual void calc(int x, int y, int z, int w)
+        virtual void calc(int x, int y, int z, int w, int lim)
         {
         }
 
-        virtual void calc(int idx)
+        virtual void calc(int idx, int lim)
         {
         }
 

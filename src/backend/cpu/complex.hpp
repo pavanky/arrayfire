@@ -44,10 +44,10 @@ namespace cpu
     template<typename To, typename Ti>          \
     struct UnOp<To, Ti, af_##op##_t>            \
     {                                           \
-        To eval(Ti in)                          \
-        {                                       \
+        typedef std::function<To(Ti)> func_t;   \
+        func_t func = [](Ti in) -> To {         \
             return std::op(in);                 \
-        }                                       \
+        };                                      \
     };                                          \
 
     CPLX_UNARY_FN(real)
