@@ -70,14 +70,7 @@ void solveTester(const int m, const int n, const int k, const int b, double eps,
     array B1 = matmul(A, X1);
     //! [ex_solve_recon]
 
-    ASSERT_NEAR(
-        0,
-        sum<typename dtype_traits<T>::base_type>(abs(real(B0 - B1))) / (m * k),
-        eps);
-    ASSERT_NEAR(
-        0,
-        sum<typename dtype_traits<T>::base_type>(abs(imag(B0 - B1))) / (m * k),
-        eps);
+    ASSERT_ARRAYS_NEAR(B0, B1, eps);
 }
 
 template<typename T>
@@ -107,14 +100,7 @@ void solveLUTester(const int n, const int k, double eps,
 
     array B1 = matmul(A, X1);
 
-    ASSERT_NEAR(
-        0,
-        sum<typename dtype_traits<T>::base_type>(abs(real(B0 - B1))) / (n * k),
-        eps);
-    ASSERT_NEAR(
-        0,
-        sum<typename dtype_traits<T>::base_type>(abs(imag(B0 - B1))) / (n * k),
-        eps);
+    ASSERT_ARRAYS_NEAR(B0, B1, eps);
 }
 
 template<typename T>
@@ -158,16 +144,7 @@ void solveTriangleTester(const int n, const int k, bool is_upper, double eps,
 
     array B1 = matmul(AT, X1);
 
-    ASSERT_NEAR(
-        0,
-        sum<typename dtype_traits<T>::base_type>(af::abs(real(B0 - B1))) /
-            (n * k),
-        eps);
-    ASSERT_NEAR(
-        0,
-        sum<typename dtype_traits<T>::base_type>(af::abs(imag(B0 - B1))) /
-            (n * k),
-        eps);
+    ASSERT_ARRAYS_NEAR(B0, B1, eps);
 }
 
 template<typename T>
